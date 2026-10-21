@@ -450,11 +450,9 @@ def _truncate(target: str) -> str:
 def _render_card(card: LinkCard) -> str:
     # A mailto: link does nothing on a device with no mail app, so an email card
     # opens Gmail's compose page in a new tab.
-    if is_mailto_url(card.url):
-        href = escape_html(gmail_compose_url(card.url))
-        attrs = f'href="{href}" target="_blank" rel="noopener"'
-    else:
-        attrs = f'href="{escape_html(safe_url(card.url))}"'
+    is_email = is_mailto_url(card.url)
+    href = escape_html(gmail_compose_url(card.url) if is_email else safe_url(card.url))
+    new_tab = ' target="_blank" rel="noopener"' if is_email else ""
     title = escape_html(card.title)
     desc = (
         f'<span class="card__desc">{escape_html(card.description)}</span>'
@@ -474,7 +472,7 @@ def _render_card(card: LinkCard) -> str:
         if target
         else ""
     )
-    return f"""      <a class="card" {attrs}>
+    return f"""      <a class="card" href="{href}"{new_tab}>
         <span class="card__mark card__mark--{escape_html(card.icon)}" aria-hidden="true"></span>
         <span class="card__body">
           <span class="card__title">{title}</span>

@@ -174,16 +174,15 @@ def gmail_compose_url(mailto: str) -> str:
     """
     recipients, _, headers = normalize_mailto(mailto)[len(_MAILTO) :].partition("?")
     to = [recipients]
-    params = []
+    params: list[tuple[str, str]] = []
     for header in headers.split("&"):
         name, _, value = header.partition("=")
-        if name.lower() == "to":
+        name = name.lower()
+        if name == "to":
             to.append(value)
-            continue
-        param = _GMAIL_PARAMS.get(name.lower())
-        if param is not None:
-            params.append((param, value))
-    params.insert(0, ("to", ",".join(v for v in to if v)))
+        elif name in _GMAIL_PARAMS:
+            params.append((_GMAIL_PARAMS[name], value))
+    params = [("to", ",".join(filter(None, to))), *params]
     query = "".join(f"&{name}={value.replace('+', '%2B')}" for name, value in params if value)
     return _GMAIL_COMPOSE + query
 
