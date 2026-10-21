@@ -158,6 +158,36 @@ def normalize_mailto(value: str) -> str:
     return _MAILTO + cleaned[len(_MAILTO) :]
 
 
+_GMAIL_COMPOSE = "https://mail.google.com/mail/?view=cm&fs=1"
+
+# The mailto: headers that Gmail's compose page accepts, and the parameter for each.
+_GMAIL_PARAMS = {"subject": "su", "body": "body", "cc": "cc", "bcc": "bcc"}
+
+
+def gmail_compose_url(mailto: str) -> str:
+    """The Gmail web compose URL for a mailto: URL.
+
+    The recipients and any `to` headers go in `to`. The subject, body, cc, and bcc
+    headers go in their Gmail parameters, and other headers are dropped. The values
+    keep their mailto: percent-encoding, which is valid in a query string. A literal
+    `+` is encoded, because Gmail reads `+` in a query string as a space.
+    """
+    recipients, _, headers = normalize_mailto(mailto)[len(_MAILTO) :].partition("?")
+    to = [recipients]
+    params = []
+    for header in headers.split("&"):
+        name, _, value = header.partition("=")
+        if name.lower() == "to":
+            to.append(value)
+            continue
+        param = _GMAIL_PARAMS.get(name.lower())
+        if param is not None:
+            params.append((param, value))
+    params.insert(0, ("to", ",".join(v for v in to if v)))
+    query = "".join(f"&{name}={value.replace('+', '%2B')}" for name, value in params if value)
+    return _GMAIL_COMPOSE + query
+
+
 def parse(value: str) -> ParsedUrl | None:
     """Parse an absolute URL with a special scheme, or return None."""
     raw = _clean(value)

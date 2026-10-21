@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from grouplink.icons import ICON_NAMES, IconName
-from grouplink.jsurl import is_mailto_url, normalize_mailto
+from grouplink.jsurl import gmail_compose_url, is_mailto_url, normalize_mailto
 from grouplink.jsurl import parse as parse_url
 
 
@@ -448,7 +448,13 @@ def _truncate(target: str) -> str:
 
 
 def _render_card(card: LinkCard) -> str:
-    href = escape_html(safe_url(card.url))
+    # A mailto: link does nothing on a device with no mail app, so an email card
+    # opens Gmail's compose page in a new tab.
+    if is_mailto_url(card.url):
+        href = escape_html(gmail_compose_url(card.url))
+        attrs = f'href="{href}" target="_blank" rel="noopener"'
+    else:
+        attrs = f'href="{escape_html(safe_url(card.url))}"'
     title = escape_html(card.title)
     desc = (
         f'<span class="card__desc">{escape_html(card.description)}</span>'
@@ -468,7 +474,7 @@ def _render_card(card: LinkCard) -> str:
         if target
         else ""
     )
-    return f"""      <a class="card" href="{href}">
+    return f"""      <a class="card" {attrs}>
         <span class="card__mark card__mark--{escape_html(card.icon)}" aria-hidden="true"></span>
         <span class="card__body">
           <span class="card__title">{title}</span>

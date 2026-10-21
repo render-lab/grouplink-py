@@ -100,7 +100,8 @@ class TestRenderPage:
     def test_renders_a_mailto_card_with_the_address_as_its_target(self) -> None:
         card = LinkCard("Email", "mailto:shifra@render.com", "", icon_url="", icon="email")
         html = render_page(replace(MODEL, cards=[card]))
-        assert 'href="mailto:shifra@render.com"' in html
+        gmail = "https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=shifra@render.com"
+        assert f'href="{gmail}" target="_blank" rel="noopener"' in html
         assert '<span class="card__target">mailto:shifra@render.com</span>' in html
         assert 'class="card__icon"' not in html
 
@@ -108,8 +109,14 @@ class TestRenderPage:
         url = "mailto:shifra@render.com?subject=Hi&body=Hello"
         card = LinkCard("Email", url, "", icon_url="", icon="email")
         html = render_page(replace(MODEL, cards=[card]))
-        assert f'href="{escape_html(url)}"' in html
+        gmail = "https://mail.google.com/mail/?view=cm&fs=1&to=shifra@render.com&su=Hi&body=Hello"
+        assert f'href="{escape_html(gmail)}"' in html
         assert '<span class="card__target">mailto:shifra@render.com</span>' in html
+
+    def test_opens_only_email_cards_in_a_new_tab(self) -> None:
+        card = LinkCard("Site", "https://render.com/", "", icon_url="", icon="arrow")
+        html = render_page(replace(MODEL, cards=[card]))
+        assert 'target="_blank"' not in html
 
     def test_labels_a_mailto_link_with_no_recipient(self) -> None:
         card = LinkCard("Email", "mailto:?subject=Hi", "", icon_url="", icon="email")

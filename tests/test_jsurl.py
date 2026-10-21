@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from grouplink.jsurl import normalize_url
+from grouplink.jsurl import gmail_compose_url, normalize_url
 
 
 class TestNormalizeUrl:
@@ -38,3 +38,33 @@ class TestNormalizeUrl:
         for cell in ["render.com", "http://render.com", "mailto:a@b.com", "ftp://x.com"]:
             once = normalize_url(cell)
             assert normalize_url(once) == once
+
+
+GMAIL = "https://mail.google.com/mail/?view=cm&fs=1"
+
+
+class TestGmailComposeUrl:
+    @pytest.mark.parametrize(
+        ("mailto", "expected"),
+        [
+            ("mailto:shifra@render.com", f"{GMAIL}&to=shifra@render.com"),
+            ("MAILTO:shifra@render.com", f"{GMAIL}&to=shifra@render.com"),
+            ("mailto:a@b.com,c@d.com", f"{GMAIL}&to=a@b.com,c@d.com"),
+            (
+                "mailto:a@b.com?subject=Hi%20there&body=Line%201%0ALine%202",
+                f"{GMAIL}&to=a@b.com&su=Hi%20there&body=Line%201%0ALine%202",
+            ),
+            ("mailto:a@b.com?cc=c@d.com&bcc=e@f.com", f"{GMAIL}&to=a@b.com&cc=c@d.com&bcc=e@f.com"),
+            ("mailto:a@b.com?Subject=Hi&BODY=Yo", f"{GMAIL}&to=a@b.com&su=Hi&body=Yo"),
+            ("mailto:a@b.com?in-reply-to=x&subject=Hi", f"{GMAIL}&to=a@b.com&su=Hi"),
+            ("mailto:?subject=Hi", f"{GMAIL}&su=Hi"),
+            ("mailto:?to=a@b.com&subject=Hi", f"{GMAIL}&to=a@b.com&su=Hi"),
+            ("mailto:a@b.com?To=c@d.com", f"{GMAIL}&to=a@b.com,c@d.com"),
+        ],
+    )
+    def test_maps_a_mailto_url_to_gmail_compose(self, mailto: str, expected: str) -> None:
+        assert gmail_compose_url(mailto) == expected
+
+    def test_encodes_a_plus_sign_so_gmail_does_not_read_it_as_a_space(self) -> None:
+        url = gmail_compose_url("mailto:shifra+links@render.com?subject=C++")
+        assert url == f"{GMAIL}&to=shifra%2Blinks@render.com&su=C%2B%2B"
