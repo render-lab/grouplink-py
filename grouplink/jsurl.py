@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from urllib.parse import quote, unquote
 
 SPECIAL_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443, "ftp": 21, "file": None}
 
@@ -168,9 +169,9 @@ def gmail_compose_url(mailto: str) -> str:
     """The Gmail web compose URL for a mailto: URL.
 
     The recipients and any `to` headers go in `to`. The subject, body, cc, and bcc
-    headers go in their Gmail parameters, and other headers are dropped. The values
-    keep their mailto: percent-encoding, which is valid in a query string. A literal
-    `+` is encoded, because Gmail reads `+` in a query string as a space.
+    headers go in their Gmail parameters, and other headers are dropped. Each value
+    is decoded and encoded again, so a raw space, `#`, `&`, or `+` from the Notion
+    cell cannot change how Gmail reads the query string.
     """
     recipients, _, headers = normalize_mailto(mailto)[len(_MAILTO) :].partition("?")
     to = [recipients]
@@ -183,8 +184,9 @@ def gmail_compose_url(mailto: str) -> str:
         elif name in _GMAIL_PARAMS:
             params.append((_GMAIL_PARAMS[name], value))
     params = [("to", ",".join(filter(None, to))), *params]
-    query = "".join(f"&{name}={value.replace('+', '%2B')}" for name, value in params if value)
-    return _GMAIL_COMPOSE + query
+    return _GMAIL_COMPOSE + "".join(
+        f"&{name}={quote(unquote(value), safe='@,')}" for name, value in params if value
+    )
 
 
 def parse(value: str) -> ParsedUrl | None:

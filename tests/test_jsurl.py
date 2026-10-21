@@ -68,3 +68,16 @@ class TestGmailComposeUrl:
     def test_encodes_a_plus_sign_so_gmail_does_not_read_it_as_a_space(self) -> None:
         url = gmail_compose_url("mailto:shifra+links@render.com?subject=C++")
         assert url == f"{GMAIL}&to=shifra%2Blinks@render.com&su=C%2B%2B"
+
+    @pytest.mark.parametrize(
+        ("mailto", "expected"),
+        [
+            ("mailto:a@b.com?subject=Hello world", f"{GMAIL}&to=a@b.com&su=Hello%20world"),
+            ("mailto:a@b.com?subject=Hi#x&body=Yo", f"{GMAIL}&to=a@b.com&su=Hi%23x&body=Yo"),
+            ("mailto:a&b@x.com", f"{GMAIL}&to=a%26b@x.com"),
+            ("mailto:a@b.com?subject=Q%26A", f"{GMAIL}&to=a@b.com&su=Q%26A"),
+            ("mailto:a@b.com?subject=caf%C3%A9", f"{GMAIL}&to=a@b.com&su=caf%C3%A9"),
+        ],
+    )
+    def test_reencodes_each_value_for_the_query_string(self, mailto: str, expected: str) -> None:
+        assert gmail_compose_url(mailto) == expected
