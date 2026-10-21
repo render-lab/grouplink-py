@@ -16,7 +16,14 @@ from pathlib import Path
 import pytest
 
 from grouplink.links import to_card
-from grouplink.page import LinkCard, PageModel, escape_html, render_page, safe_url
+from grouplink.page import (
+    PAGE_SCRIPT,
+    LinkCard,
+    PageModel,
+    escape_html,
+    render_page,
+    safe_url,
+)
 from scripts.placeholder import PROFILES, TAGLINE, SeedProfile
 
 GOLDEN = Path(__file__).parent / "golden"
@@ -101,7 +108,8 @@ class TestRenderPage:
         card = LinkCard("Email", "mailto:shifra@render.com", "", icon_url="", icon="email")
         html = render_page(replace(MODEL, cards=[card]))
         gmail = "https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=shifra@render.com"
-        assert f'href="{gmail}" target="_blank" rel="noopener"' in html
+        assert f'href="mailto:shifra@render.com" data-gmail="{gmail}"' in html
+        assert 'target="_blank"' not in html
         assert '<span class="card__target">mailto:shifra@render.com</span>' in html
         assert 'class="card__icon"' not in html
 
@@ -110,13 +118,19 @@ class TestRenderPage:
         card = LinkCard("Email", url, "", icon_url="", icon="email")
         html = render_page(replace(MODEL, cards=[card]))
         gmail = "https://mail.google.com/mail/?view=cm&fs=1&to=shifra@render.com&su=Hi&body=Hello"
-        assert f'href="{escape_html(gmail)}"' in html
+        assert f'href="{escape_html(url)}" data-gmail="{escape_html(gmail)}"' in html
         assert '<span class="card__target">mailto:shifra@render.com</span>' in html
 
-    def test_opens_only_email_cards_in_a_new_tab(self) -> None:
+    def test_gives_only_email_cards_a_gmail_link(self) -> None:
         card = LinkCard("Site", "https://render.com/", "", icon_url="", icon="arrow")
         html = render_page(replace(MODEL, cards=[card]))
-        assert 'target="_blank"' not in html
+        assert 'data-gmail="' not in html
+
+    def test_swaps_in_the_gmail_link_only_on_a_desktop(self) -> None:
+        html = render_page(MODEL)
+        assert f"<script>{PAGE_SCRIPT}</script>" in html
+        assert "matchMedia('(hover: hover) and (pointer: fine)')" in PAGE_SCRIPT
+        assert "a[data-gmail]" in PAGE_SCRIPT
 
     def test_labels_a_mailto_link_with_no_recipient(self) -> None:
         card = LinkCard("Email", "mailto:?subject=Hi", "", icon_url="", icon="email")

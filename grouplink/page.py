@@ -7,7 +7,7 @@ Visual foundations come from Render's brand system: semantic color tokens in
 
 The page carries its own Content-Security-Policy, with the inline style and
 script blocks allowed by hash. Adding either one anywhere but STYLES or
-ICON_FALLBACK_SCRIPT will be blocked by the browser. The policy is a meta tag
+PAGE_SCRIPT will be blocked by the browser. The policy is a meta tag
 rather than a response header so the hashes cannot drift from the content
 they cover.
 
@@ -384,13 +384,24 @@ STYLES = _STYLES_HEAD + ROW_STAGGER + _STYLES_MID + ICON_MASKS + _STYLES_TAIL
 # A favicon that 404s leaves a broken-image glyph, and no CSS selector matches a
 # failed image. `error` does not bubble, so the listener runs in the capture phase.
 # It adds a class instead of writing el.style, which the policy would have to allow.
-ICON_FALLBACK_SCRIPT = """
+#
+# An email card links to mailto:, which opens the mail app on a phone. A desktop
+# often has no mail app, so a mouse or trackpad swaps in Gmail's compose page.
+PAGE_SCRIPT = """
 addEventListener('error', function (event) {
   var el = event.target;
   if (el instanceof HTMLImageElement && el.classList.contains('card__icon')) {
     el.classList.add('card__icon--broken');
   }
 }, true);
+
+if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
+  document.querySelectorAll('a[data-gmail]').forEach(function (a) {
+    a.href = a.dataset.gmail;
+    a.target = '_blank';
+    a.rel = 'noopener';
+  });
+}
 """
 
 
@@ -408,7 +419,7 @@ CSP = "; ".join(
         # link points at, over TLS only.
         "img-src 'self' https:",
         f"style-src {_sha256_source(STYLES)}",
-        f"script-src {_sha256_source(ICON_FALLBACK_SCRIPT)}",
+        f"script-src {_sha256_source(PAGE_SCRIPT)}",
         "font-src 'self'",
         "base-uri 'none'",
         "form-action 'none'",
@@ -448,11 +459,13 @@ def _truncate(target: str) -> str:
 
 
 def _render_card(card: LinkCard) -> str:
-    # A mailto: link does nothing on a device with no mail app, so an email card
-    # opens Gmail's compose page in a new tab.
-    is_email = is_mailto_url(card.url)
-    href = escape_html(gmail_compose_url(card.url) if is_email else safe_url(card.url))
-    new_tab = ' target="_blank" rel="noopener"' if is_email else ""
+    href = escape_html(safe_url(card.url))
+    # PAGE_SCRIPT swaps this in for the mailto: href on a desktop.
+    gmail = (
+        f' data-gmail="{escape_html(gmail_compose_url(card.url))}"'
+        if is_mailto_url(card.url)
+        else ""
+    )
     title = escape_html(card.title)
     desc = (
         f'<span class="card__desc">{escape_html(card.description)}</span>'
@@ -472,7 +485,7 @@ def _render_card(card: LinkCard) -> str:
         if target
         else ""
     )
-    return f"""      <a class="card" href="{href}"{new_tab}>
+    return f"""      <a class="card" href="{href}"{gmail}>
         <span class="card__mark card__mark--{escape_html(card.icon)}" aria-hidden="true"></span>
         <span class="card__body">
           <span class="card__title">{title}</span>
@@ -559,7 +572,7 @@ def render_page(model: PageModel, year: int | None = None) -> str:
 
     <footer class="footer">&copy; {footer_year} render.com</footer>
   </main>
-<script>{ICON_FALLBACK_SCRIPT}</script>
+<script>{PAGE_SCRIPT}</script>
 </body>
 </html>
 """

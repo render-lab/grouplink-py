@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https:; style-src 'sha256-DNXf872JgktmLp8LMVVBmQoZBkOJA1vhSSQi/WMihn4='; script-src 'sha256-nsmyq4665IeAl+Jlo+x36bCB9QoTOCItVFJQEtSIlhM='; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https:; style-src 'sha256-DNXf872JgktmLp8LMVVBmQoZBkOJA1vhSSQi/WMihn4='; script-src 'sha256-ErC8tcBpIEFPT21jBhYHSqRvc99cTGhJeDRPRcZLLEw='; font-src 'self'; base-uri 'none'; form-action 'none'">
 <title>Render Links</title>
 <meta name="description" content="The fastest path to production for full-stack applications and agents">
 <meta property="og:title" content="Shifra — links">
@@ -364,6 +364,14 @@ addEventListener('error', function (event) {
     el.classList.add('card__icon--broken');
   }
 }, true);
+
+if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
+  document.querySelectorAll('a[data-gmail]').forEach(function (a) {
+    a.href = a.dataset.gmail;
+    a.target = '_blank';
+    a.rel = 'noopener';
+  });
+}
 </script>
 </body>
 </html>
