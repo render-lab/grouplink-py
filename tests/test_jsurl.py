@@ -57,6 +57,7 @@ class TestGmailComposeUrl:
             ("mailto:a@b.com?cc=c@d.com&bcc=e@f.com", f"{GMAIL}&to=a@b.com&cc=c@d.com&bcc=e@f.com"),
             ("mailto:a@b.com?Subject=Hi&BODY=Yo", f"{GMAIL}&to=a@b.com&su=Hi&body=Yo"),
             ("mailto:a@b.com?in-reply-to=x&subject=Hi", f"{GMAIL}&to=a@b.com&su=Hi"),
+            ("mailto:a@b.com?constructor=x", f"{GMAIL}&to=a@b.com"),
             ("mailto:?subject=Hi", f"{GMAIL}&su=Hi"),
             ("mailto:?to=a@b.com&subject=Hi", f"{GMAIL}&to=a@b.com&su=Hi"),
             ("mailto:a@b.com?To=c@d.com", f"{GMAIL}&to=a@b.com,c@d.com"),
@@ -77,6 +78,9 @@ class TestGmailComposeUrl:
             ("mailto:a&b@x.com", f"{GMAIL}&to=a%26b@x.com"),
             ("mailto:a@b.com?subject=Q%26A", f"{GMAIL}&to=a@b.com&su=Q%26A"),
             ("mailto:a@b.com?subject=caf%C3%A9", f"{GMAIL}&to=a@b.com&su=caf%C3%A9"),
+            ("mailto:a@b.com?subject=Hi!(*)'", f"{GMAIL}&to=a@b.com&su=Hi%21%28%2A%29%27"),
+            ("mailto:a@b.com?subject=100%", f"{GMAIL}&to=a@b.com&su=100%25"),
+            ("mailto:a@b.com?subject=%C3", f"{GMAIL}&to=a@b.com&su=%EF%BF%BD"),
         ],
     )
     def test_reencodes_each_value_for_the_query_string(self, mailto: str, expected: str) -> None:
