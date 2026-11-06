@@ -89,12 +89,12 @@ def test_serves_the_default_profile_at_the_root(app: App) -> None:
     response = app.client.get("/")
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/html; charset=utf-8"
-    assert response.text == render_page(SHIFRA)
+    assert response.text == render_page(SHIFRA, profile_slug="shifra")
 
 
 def test_serves_a_profile_at_its_slug_with_or_without_a_trailing_slash(app: App) -> None:
-    assert app.client.get("/alex").text == render_page(ALEX)
-    assert app.client.get("/alex/").text == render_page(ALEX)
+    assert app.client.get("/alex").text == render_page(ALEX, profile_slug="alex")
+    assert app.client.get("/alex/").text == render_page(ALEX, profile_slug="alex")
     assert app.client.get("/shifra").text == app.client.get("/").text
 
 
@@ -112,7 +112,7 @@ def test_answers_a_reserved_slug_with_a_404_page(app: App) -> None:
 def test_reads_key_value_on_each_request(app: App) -> None:
     app.client.get("/")
     app.kv.value = snapshot(shifra=ALEX)
-    assert app.client.get("/").text == render_page(ALEX)
+    assert app.client.get("/").text == render_page(ALEX, profile_slug="alex")
     assert app.kv.reads == 2
 
 
@@ -121,7 +121,7 @@ def test_serves_the_last_good_copy_when_key_value_fails(app: App) -> None:
     app.kv.error = ConnectionError("Key Value is down")
     response = app.client.get("/")
     assert response.status_code == 200
-    assert response.text == render_page(SHIFRA)
+    assert response.text == render_page(SHIFRA, profile_slug="shifra")
 
 
 def test_serves_the_last_good_copy_when_the_value_will_not_parse(app: App) -> None:
@@ -129,7 +129,7 @@ def test_serves_the_last_good_copy_when_the_value_will_not_parse(app: App) -> No
     doc = json.loads(snapshot())
     doc["schema"] = 2
     app.kv.value = json.dumps(doc)
-    assert app.client.get("/").text == render_page(SHIFRA)
+    assert app.client.get("/").text == render_page(SHIFRA, profile_slug="shifra")
 
 
 def test_answers_503_when_key_value_fails_before_any_good_copy() -> None:

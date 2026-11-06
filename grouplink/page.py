@@ -696,7 +696,7 @@ def render_page(
     model: PageModel,
     year: int | None = None,
     *,
-    profile_slug: str = "",
+    profile_slug: str,
     section: str | None = None,
 ) -> str:
     """`year` is the footer's copyright year, read from the clock when it is None.

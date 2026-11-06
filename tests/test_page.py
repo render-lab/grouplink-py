@@ -67,19 +67,22 @@ def test_reproduces_the_committed_page_byte_for_byte(profile: SeedProfile, fixtu
             cards=[to_card(link, link.description) for link in profile.links],
         ),
         year=GOLDEN_YEAR,
+        profile_slug="shifra",
     )
     assert html == (GOLDEN / fixture).read_text()
 
 
 class TestRenderPage:
     def test_emits_every_card_in_model_order(self) -> None:
-        html = render_page(MODEL)
+        html = render_page(MODEL, profile_slug="shifra")
         assert html.index("First") < html.index("Second")
         assert 'href="https://example.com/a"' in html
         assert 'href="https://x.com/render"' in html
 
     def test_omits_the_description_paragraph_when_there_is_no_description(self) -> None:
-        assert len(re.findall(r'class="card__desc"', render_page(MODEL))) == 1
+        assert (
+            len(re.findall(r'class="card__desc"', render_page(MODEL, profile_slug="shifra"))) == 1
+        )
 
     def test_escapes_titles_and_descriptions(self) -> None:
         html = render_page(
@@ -94,7 +97,8 @@ class TestRenderPage:
                         icon="arrow",
                     )
                 ],
-            )
+            ),
+            profile_slug="shifra",
         )
         assert "<script>alert(1)</script>" not in html
         assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
@@ -102,13 +106,13 @@ class TestRenderPage:
 
     def test_drops_a_javascript_href(self) -> None:
         card = LinkCard("Bad", "javascript:alert(1)", "", icon_url="", icon="arrow")
-        html = render_page(replace(MODEL, cards=[card]))
+        html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         assert "javascript:" not in html
         assert 'href="#"' in html
 
     def test_renders_a_mailto_card_with_the_address_as_its_target(self) -> None:
         card = LinkCard("Email", "mailto:shifra@render.com", "", icon_url="", icon="email")
-        html = render_page(replace(MODEL, cards=[card]))
+        html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         gmail = "https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=shifra@render.com"
         assert f'href="mailto:shifra@render.com" data-gmail="{gmail}"' in html
         assert 'target="_blank"' not in html
@@ -118,45 +122,47 @@ class TestRenderPage:
     def test_keeps_mailto_headers_in_the_href_but_off_the_target_line(self) -> None:
         url = "mailto:shifra@render.com?subject=Hi&body=Hello"
         card = LinkCard("Email", url, "", icon_url="", icon="email")
-        html = render_page(replace(MODEL, cards=[card]))
+        html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         gmail = "https://mail.google.com/mail/?view=cm&fs=1&to=shifra@render.com&su=Hi&body=Hello"
         assert f'href="{escape_html(url)}" data-gmail="{escape_html(gmail)}"' in html
         assert '<span class="card__target">mailto:shifra@render.com</span>' in html
 
     def test_gives_only_email_cards_a_gmail_link(self) -> None:
         card = LinkCard("Site", "https://render.com/", "", icon_url="", icon="arrow")
-        html = render_page(replace(MODEL, cards=[card]))
+        html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         assert 'data-gmail="' not in html
 
     def test_swaps_in_the_gmail_link_only_on_a_desktop(self) -> None:
-        html = render_page(MODEL)
+        html = render_page(MODEL, profile_slug="shifra")
         assert f"<script>{PAGE_SCRIPT}</script>" in html
         assert "matchMedia('(hover: hover) and (pointer: fine)')" in PAGE_SCRIPT
         assert "a[data-gmail]" in PAGE_SCRIPT
 
     def test_labels_a_mailto_link_with_no_recipient(self) -> None:
         card = LinkCard("Email", "mailto:?subject=Hi", "", icon_url="", icon="email")
-        html = render_page(replace(MODEL, cards=[card]))
+        html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         assert '<span class="card__target">mailto</span>' in html
 
     def test_keeps_the_tagline_out_of_the_page_and_on_one_line(self) -> None:
-        html = render_page(replace(MODEL, tagline="First half\nsecond half"))
+        html = render_page(replace(MODEL, tagline="First half\nsecond half"), profile_slug="shifra")
         assert 'class="tagline"' not in html
         assert '<meta name="description" content="First half second half">' in html
 
     def test_draws_the_card_icon_the_model_names(self) -> None:
-        html = render_page(MODEL)
+        html = render_page(MODEL, profile_slug="shifra")
         assert 'class="card__mark card__mark--workflows"' in html
         assert 'class="card__mark card__mark--arrow"' in html
 
     def test_reads_the_footer_year_from_its_argument(self) -> None:
-        assert "&copy; 1999 render.com" in render_page(MODEL, year=1999)
+        assert "&copy; 1999 render.com" in render_page(MODEL, year=1999, profile_slug="shifra")
 
     def test_always_renders_the_same_icon_row(self) -> None:
-        assert 'class="social__icon social__icon--github"' in render_page(MODEL)
+        assert 'class="social__icon social__icon--github"' in render_page(
+            MODEL, profile_slug="shifra"
+        )
 
     def test_declares_both_color_schemes_and_no_bold_weight(self) -> None:
-        html = render_page(MODEL)
+        html = render_page(MODEL, profile_slug="shifra")
         assert "@media (prefers-color-scheme: dark)" in html
         assert "prefers-reduced-motion" in html
         assert not re.search(r"font-weight:\s*(600|700|800|900|bold)", html)
@@ -181,16 +187,16 @@ class TestContentSecurityPolicy:
         return f"sha256-{base64.b64encode(digest).decode('ascii')}"
 
     def test_allows_the_inline_blocks_it_actually_emits(self) -> None:
-        html = render_page(MODEL)
+        html = render_page(MODEL, profile_slug="shifra")
         csp = self._policy(html)
         assert f"style-src '{self._sha256(self._inline_block(html, 'style'))}'" in csp
         assert f"script-src '{self._sha256(self._inline_block(html, 'script'))}'" in csp
 
     def test_allows_the_sites_own_images(self) -> None:
-        assert "img-src 'self' https:" in self._policy(render_page(MODEL))
+        assert "img-src 'self' https:" in self._policy(render_page(MODEL, profile_slug="shifra"))
 
     def test_emits_no_inline_event_handlers(self) -> None:
-        assert not re.search(r"\son[a-z]+=", render_page(MODEL))
+        assert not re.search(r"\son[a-z]+=", render_page(MODEL, profile_slug="shifra"))
 
 
 class TestEscapeHtmlAndSafeUrl:

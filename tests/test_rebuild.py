@@ -270,7 +270,7 @@ class Harness:
 
     def html(self, slug: str = "shifra") -> str:
         """One profile's page, rendered from the snapshot the last run wrote."""
-        return render_page(self.snapshot().pages[slug], 2026)
+        return render_page(self.snapshot().pages[slug], 2026, profile_slug=slug)
 
 
 @pytest.fixture
