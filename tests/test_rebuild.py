@@ -19,6 +19,7 @@ from typing import Any
 
 import httpx
 import pytest
+from render.client.errors import TaskRunError
 from render_lab_tasks_http.client import Client as HttpPackClient
 from render_lab_tasks_http.client import Deps as HttpDeps
 from render_lab_tasks_http.request import request_impl
@@ -254,7 +255,11 @@ class Harness:
         route = routes.get(task.name)
         if route is None:
             raise AssertionError(f'no fake for ctx.run("{task.name}")')
-        return await route(args[0] if args else {})
+        try:
+            return await route(args[0] if args else {})
+        except Exception as error:
+            # On Render, ctx.run raises TaskRunError for any subtask failure.
+            raise TaskRunError(f"Subtask failed: {error}") from error
 
     # --- what the run wrote ---
 
@@ -505,6 +510,16 @@ class TestRebuild:
         await rebuild.func(h.ctx, {})
         assert h.kv.sets[0]["value"].startswith('{"description":"desc for ')
         assert ", " not in h.kv.sets[0]["value"]
+
+    async def test_publishes_with_no_description_when_a_scrape_fails(self, env: Any) -> None:
+        h = harness(statuses={"https://render.com/startups": 999})
+        result = await rebuild.func(h.ctx, {})
+
+        assert result["published"] is True
+        assert "desc for https://render.com/startups" not in h.html()
+        assert 'href="https://render.com/startups"' in h.html()
+        assert "https://render.com/startups" not in str(h.meta_sets())
+        assert result["deadLinks"] == ["https://render.com/startups (no response)"]
 
     async def test_reports_unreachable_links(self, env: Any) -> None:
         h = harness(statuses={"https://render.com/startups": 404})

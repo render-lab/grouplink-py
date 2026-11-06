@@ -15,7 +15,9 @@ from datetime import UTC, datetime
 from typing import Any, TypedDict
 
 from render import TaskContext
+from render.client.errors import TaskRunError
 from render_lab_tasks_http.request import request
+from render_lab_tasks_http.types import RequestResult
 from render_lab_tasks_notion.types import PageDTO
 from render_lab_tasks_render_kv.get import get as kv_get
 from render_lab_tasks_render_kv.set import set as kv_set
@@ -108,26 +110,29 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
         if hit is not None:
             meta_by_url[url] = hit
 
-    # 3) Batched fan-out: scrape only the misses.
+    # 3) Batched fan-out: scrape only the misses. A failed scrape gives the card no
+    #    description, so one site that blocks the scraper does not stop the run.
     miss_urls = [url for url in web_urls if url not in meta_by_url]
-    scraped = await map_in_batches(
-        miss_urls, lambda url, _i: ctx.run(extract_metadata, {"url": url})
-    )
-    scraped_meta: list[CachedMeta] = [
-        {"description": card_description(result or {})} for result in scraped
-    ]
-    meta_by_url.update(zip(miss_urls, scraped_meta, strict=True))
+    scraped = await map_in_batches(miss_urls, lambda url, _i: _scrape(ctx, url))
+    scraped_meta: dict[str, CachedMeta] = {
+        url: {"description": card_description(result)}
+        for url, result in zip(miss_urls, scraped, strict=True)
+        if result is not None
+    }
+    meta_by_url.update(scraped_meta)
 
-    # 4) Batched fan-out: write the fresh metadata back with a TTL.
+    # 4) Batched fan-out: write the fresh metadata back with a TTL. A failed scrape
+    #    is not cached, so the next run tries it again.
+    scraped_urls = list(scraped_meta)
     await map_in_batches(
-        miss_urls,
-        lambda url, i: ctx.run(
+        scraped_urls,
+        lambda url, _i: ctx.run(
             kv_set,
             {
                 "key": meta_cache_key(url),
                 # Separators match the JSON the TypeScript implementation writes, so
                 # an entry looks the same in Key Value whichever one wrote it.
-                "value": json.dumps(scraped_meta[i], separators=(",", ":")),
+                "value": json.dumps(scraped_meta[url], separators=(",", ":")),
                 "ttlSeconds": cfg.cache_ttl_seconds,
             },
         ),
@@ -135,9 +140,7 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
 
     # 5) Batched fan-out: health-check every link. tasks-http has no HEAD method, so
     #    this is a GET whose body we discard.
-    checks = await map_in_batches(
-        web_urls, lambda url, _i: ctx.run(request, {"method": "GET", "url": url})
-    )
+    checks = await map_in_batches(web_urls, lambda url, _i: _check(ctx, url))
     dead_links = [
         f"{url} ({check['status'] if check else 'no response'})"
         for url, check in zip(web_urls, checks, strict=True)
@@ -183,6 +186,26 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
         dead_links,
     )
     return result
+
+
+async def _scrape(ctx: TaskContext, url: str) -> Mapping[str, Any] | None:
+    """The page's metadata, or None when the scrape fails after its retries."""
+    try:
+        result = await ctx.run(extract_metadata, {"url": url})
+    except TaskRunError as error:
+        log.warning("scrape failed for %s: %s", url, error)
+        return None
+    return result or {}
+
+
+async def _check(ctx: TaskContext, url: str) -> RequestResult | None:
+    """The GET's status, or None when the request fails after its retries. The http
+    pack raises on any status of 500 or more, which includes LinkedIn's 999."""
+    try:
+        return await ctx.run(request, {"method": "GET", "url": url})
+    except TaskRunError as error:
+        log.warning("health check failed for %s: %s", url, error)
+        return None
 
 
 def _report_notion_problems(
