@@ -22,7 +22,6 @@ from grouplink.links import (
     servable_profiles,
     to_link_rows,
     to_profile_rows,
-    unnumbered_last,
     visible_rows,
 )
 
@@ -43,7 +42,8 @@ async def read_notion_site(ctx: TaskContext, cfg: RebuildConfig) -> NotionSite:
     """Two runs in parallel.
 
     A link's `Profiles` relation holds the Notion page ids of its Profiles rows, which
-    is how the two join. Notion sorts the links by `Order`. The profiles need no sort.
+    is how the two join. Notion sorts the links by `Section`, then `Order`. The
+    profiles need no sort.
     """
     link_pages, profile_pages = await asyncio.gather(
         ctx.run(
@@ -56,6 +56,6 @@ async def read_notion_site(ctx: TaskContext, cfg: RebuildConfig) -> NotionSite:
     profiles = to_profile_rows(profile_pages)
     servable = servable_profiles(profiles)
     assert_default_slug(servable, cfg.default_slug)
-    pages = group_by_profile(visible_rows(unnumbered_last(to_link_rows(link_pages))), servable)
+    pages = group_by_profile(visible_rows(to_link_rows(link_pages)), servable)
 
     return NotionSite(link_pages=link_pages, profiles=profiles, pages=pages)

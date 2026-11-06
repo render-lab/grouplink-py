@@ -21,6 +21,7 @@ class SeedLink:
     url: str
     description: str
     icon: IconName
+    section: str = ""
 
 
 @dataclass(frozen=True)

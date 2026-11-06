@@ -34,6 +34,7 @@ The links database has the following properties:
 | `Profiles` | relation | The profiles whose pages show the link                     |
 | `Icon`     | select   | A file name from `grouplink/assets/link-icons/`. Empty means `arrow`. |
 | `Order`    | number   | Card position, lowest first. Required.                     |
+| `Section`  | select   | The tab the link shows in. Empty means the first tab.      |
 
 The profiles database has the following properties:
 
@@ -44,6 +45,16 @@ The profiles database has the following properties:
 | `Tagline` | text  | The page description in the metadata    |
 
 The profile named by `SITE_DEFAULT_SLUG` is also served at `/`. The slugs `assets`, `healthz`, `links`, `tasks`, and `webhooks` are reserved.
+
+### Sections
+
+A page with links in two or more sections shows a row of tabs above the links. The tabs are in the order of the `Section` options. To move a tab, drag its option in the property settings. Inside each tab, the links are in `Order`, and links with no `Order` go last. A link with no section shows in the first tab. A page with fewer than two sections shows no tabs and shows all its links in `Order`.
+
+A click on a tab shows its links without loading the page again.
+
+Each tab has its own URL. The last path segment is the `Section` text in lowercase, with spaces and underscores changed to `-` and other characters removed. `AI Agents` becomes `ai-agents`, so `/shifra/ai-agents` opens that tab. `/shifra` opens the first tab, and a section the page does not have returns a 404 page. Two values with the same segment, such as `Startups` and `startups`, are one tab.
+
+The web service serves every page path with and without the `/links` prefix, because render.com removes the prefix and a direct visit to the onrender.com URL does not.
 
 ## Local development
 

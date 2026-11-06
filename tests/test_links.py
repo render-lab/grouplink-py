@@ -11,14 +11,16 @@ from grouplink.links import (
     fetchable_urls,
     group_by_profile,
     meta_cache_key,
+    page_order,
+    section_ranks,
     servable_profiles,
     skipped_rows,
+    to_card,
     to_icon_name,
     to_link_rows,
     to_profile_rows,
     unique_urls,
     unknown_icons,
-    unnumbered_last,
     unservable_profiles,
     visible_rows,
 )
@@ -94,6 +96,15 @@ class TestToLinkRows:
     def test_defaults_the_icon_when_the_column_is_missing(self) -> None:
         assert to_link_rows([page({"URL": "https://a.example"}, "A")])[0].icon == "arrow"
 
+    def test_reads_the_section_column(self) -> None:
+        rows = to_link_rows(
+            [
+                page({"URL": "https://a.example", "Section": " AI Agents "}, "A"),
+                page({"URL": "https://b.example"}, "B"),
+            ]
+        )
+        assert [row.section for row in rows] == ["AI Agents", ""]
+
 
 class TestOrder:
     def test_reads_a_number_as_order_and_anything_else_as_none(self) -> None:
@@ -111,22 +122,63 @@ class TestOrder:
         assert [row.order for row in rows] == [10, 2.5, 0, None, None, None, None]
 
 
-class TestUnnumberedLast:
-    def test_moves_rows_with_no_order_to_the_end_and_keeps_input_order(self) -> None:
+def ordered(*cells: tuple[str, str, float | None]) -> list[str]:
+    """Titles in `page_order`, for rows given as (title, section, order)."""
+    rows = to_link_rows(
+        [
+            page({"URL": f"https://{title}.example", "Section": section, "Order": order}, title)
+            for title, section, order in cells
+        ]
+    )
+    return [row.title for row in page_order(rows, section_ranks(rows))]
+
+
+class TestPageOrder:
+    def test_puts_the_tabs_in_input_order_and_each_tab_in_order(self) -> None:
+        assert ordered(
+            ("agents-20", "AI Agents", 20),
+            ("agents-5", "AI Agents", 5),
+            ("startups-1", "Startups", 1),
+        ) == ["agents-5", "agents-20", "startups-1"]
+
+    def test_puts_a_row_with_no_section_in_the_first_tab_by_order(self) -> None:
+        assert ordered(
+            ("agents-20", "AI Agents", 20),
+            ("startups-1", "Startups", 1),
+            ("loose-10", "", 10),
+        ) == ["loose-10", "agents-20", "startups-1"]
+
+    def test_moves_rows_with_no_order_to_the_end_of_their_tab(self) -> None:
+        assert ordered(
+            ("agents-empty", "AI Agents", None),
+            ("agents-5", "AI Agents", 5),
+            ("startups-empty", "Startups", None),
+            ("startups-1", "Startups", 1),
+        ) == ["agents-5", "agents-empty", "startups-1", "startups-empty"]
+
+    def test_keeps_input_order_with_no_sections(self) -> None:
+        assert ordered(("b", "", 2), ("empty", "", None), ("a", "", 1)) == ["a", "b", "empty"]
+
+    def test_ranks_values_with_one_slug_as_one_tab(self) -> None:
         rows = to_link_rows(
             [
-                page({"URL": "https://a.example"}, "Empty 1"),
-                page({"URL": "https://b.example", "Order": 20}, "Twenty"),
-                page({"URL": "https://c.example"}, "Empty 2"),
-                page({"URL": "https://d.example", "Order": 10}, "Ten"),
+                page({"URL": "https://a.example", "Section": "Startups"}, "A"),
+                page({"URL": "https://b.example", "Section": "AI Agents"}, "B"),
+                page({"URL": "https://c.example", "Section": "startups"}, "C"),
             ]
         )
-        assert [row.title for row in unnumbered_last(rows)] == [
-            "Twenty",
-            "Ten",
-            "Empty 1",
-            "Empty 2",
-        ]
+        assert section_ranks(rows) == {"startups": 0, "ai-agents": 1}
+
+    def test_uses_the_ranks_of_every_row_for_one_page(self) -> None:
+        rows = to_link_rows(
+            [
+                page({"URL": "https://a.example", "Section": "Startups"}, "A"),
+                page({"URL": "https://b.example", "Section": "AI Agents"}, "B"),
+                page({"URL": "https://c.example", "Section": "Startups"}, "C"),
+            ]
+        )
+        ranks = {"ai-agents": 0, "startups": 1}
+        assert [row.title for row in page_order(rows, ranks)] == ["B", "A", "C"]
 
 
 class TestToIconName:
@@ -285,3 +337,8 @@ class TestServableProfiles:
 
 def test_meta_cache_key_is_versioned() -> None:
     assert meta_cache_key("https://a.example") == "gl:meta:v1:https://a.example"
+
+
+def test_to_card_keeps_the_section() -> None:
+    row = to_link_rows([page({"URL": "https://a.example", "Section": "Startups"}, "A")])[0]
+    assert to_card(row, "").section == "Startups"

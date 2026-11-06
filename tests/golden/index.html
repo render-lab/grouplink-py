@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https:; style-src 'sha256-DNXf872JgktmLp8LMVVBmQoZBkOJA1vhSSQi/WMihn4='; script-src 'sha256-ErC8tcBpIEFPT21jBhYHSqRvc99cTGhJeDRPRcZLLEw='; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https:; style-src 'sha256-D0zRh4tuDwpjCEGVTbeZr/BNC90HSQgsYhOFHq6VF/c='; script-src 'sha256-LbG5xafRQpcoPIU+c0yns0Q5PwLlW6QEOVrSagulVxU='; font-src 'self'; base-uri 'none'; form-action 'none'">
 <title>Render Links</title>
 <meta name="description" content="The fastest path to production for full-stack applications and agents">
 <meta property="og:title" content="Shifra — links">
@@ -244,6 +244,32 @@ body {
   overflow-wrap: anywhere;
 }
 
+.tabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+/* Selected state stays neutral. Only hover and focus use the link color. */
+.tab {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+  text-decoration: none;
+}
+.tab:hover,
+.tab:focus-visible { color: var(--link); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.tab[aria-current="page"] {
+  text-decoration: underline 1px var(--text);
+  text-underline-offset: 4px;
+}
+
 .footer {
   font-family: var(--font-mono);
   font-size: 12.1px;
@@ -304,6 +330,7 @@ body {
   .masthead { margin-bottom: 28px; }
   .socials { margin-top: 20px; }
   .logo { width: 190px; height: 36px; }
+  .tab { display: inline-flex; align-items: center; min-height: 44px; }
   .card { grid-template-columns: 24px 1fr; gap: 12px; padding: 16px 4px; min-height: 44px; }
 }
 
@@ -370,6 +397,45 @@ if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
     a.href = a.dataset.gmail;
     a.target = '_blank';
     a.rel = 'noopener';
+  });
+}
+
+// A tab click shows its links in place, so the header does not load again.
+// Each tab is also a full link, for a new tab, a copied URL, or no script.
+var tabs = document.querySelectorAll('.tab[data-section]');
+
+function showSection(slug) {
+  tabs.forEach(function (tab) {
+    if (tab.dataset.section === slug) {
+      tab.setAttribute('aria-current', 'page');
+    } else {
+      tab.removeAttribute('aria-current');
+    }
+  });
+  document.querySelectorAll('.links[data-section]').forEach(function (list) {
+    list.hidden = list.dataset.section !== slug;
+  });
+}
+
+tabs.forEach(function (tab) {
+  tab.addEventListener('click', function (event) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    event.preventDefault();
+    if (tab.getAttribute('aria-current') === 'page') {
+      return;
+    }
+    showSection(tab.dataset.section);
+    history.pushState({ section: tab.dataset.section }, '', tab.href);
+  });
+});
+
+if (tabs.length) {
+  var opened = document.querySelector('.tab[aria-current="page"]').dataset.section;
+  history.replaceState({ section: opened }, '');
+  addEventListener('popstate', function (event) {
+    showSection(event.state && event.state.section ? event.state.section : opened);
   });
 }
 </script>

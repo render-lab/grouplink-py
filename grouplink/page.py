@@ -42,6 +42,8 @@ class LinkCard:
     icon_url: str
     #: Which file under grouplink/assets/link-icons the card draws in its left column.
     icon: IconName
+    #: The `Section` cell, which names the card's tab. Empty puts it in the first tab.
+    section: str = ""
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,50 @@ class PageModel:
     #: Metadata only. The page does not show it.
     tagline: str
     cards: list[LinkCard] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class Section:
+    """One tab of a page and the cards it shows."""
+
+    title: str
+    #: The last segment of the tab's path. Empty only on a page with no sections.
+    slug: str
+    cards: list[LinkCard]
+
+
+_SLUG_SEPARATORS = re.compile(r"[ _]")
+_NOT_SLUG = re.compile(r"[^a-z0-9-]")
+
+
+def section_slug(title: str) -> str:
+    """The path segment for a `Section` value. `AI Agents` becomes `ai-agents`."""
+    return _NOT_SLUG.sub("", _SLUG_SEPARATORS.sub("-", title.strip().lower()))
+
+
+def sections(model: PageModel) -> list[Section]:
+    """The page's tabs, in the order of their first card.
+
+    Values with the same slug are one tab, titled by the first value. A card with no
+    section, or one whose slug is empty, goes in the first tab. A page where no card
+    has a section is one untitled section.
+    """
+    titles: dict[str, str] = {}
+    for card in model.cards:
+        slug = section_slug(card.section)
+        if slug:
+            titles.setdefault(slug, card.section.strip())
+
+    first = next(iter(titles), "")
+    grouped: dict[str, list[LinkCard]] = {slug: [] for slug in titles} or {"": []}
+    for card in model.cards:
+        grouped[section_slug(card.section) or first].append(card)
+    return [Section(titles.get(slug, ""), slug, cards) for slug, cards in grouped.items()]
+
+
+def find_section(tabs: list[Section], slug: str) -> Section | None:
+    """The tab whose path segment is `slug`, or None. An empty slug matches nothing."""
+    return next((tab for tab in tabs if slug and tab.slug == slug), None)
 
 
 def escape_html(value: str) -> str:
@@ -310,6 +356,32 @@ _STYLES_TAIL = """
   overflow-wrap: anywhere;
 }
 
+.tabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+/* Selected state stays neutral. Only hover and focus use the link color. */
+.tab {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+  text-decoration: none;
+}
+.tab:hover,
+.tab:focus-visible { color: var(--link); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.tab[aria-current="page"] {
+  text-decoration: underline 1px var(--text);
+  text-underline-offset: 4px;
+}
+
 .footer {
   font-family: var(--font-mono);
   font-size: 12.1px;
@@ -370,6 +442,7 @@ _STYLES_TAIL = """
   .masthead { margin-bottom: 28px; }
   .socials { margin-top: 20px; }
   .logo { width: 190px; height: 36px; }
+  .tab { display: inline-flex; align-items: center; min-height: 44px; }
   .card { grid-template-columns: 24px 1fr; gap: 12px; padding: 16px 4px; min-height: 44px; }
 }
 
@@ -400,6 +473,45 @@ if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
     a.href = a.dataset.gmail;
     a.target = '_blank';
     a.rel = 'noopener';
+  });
+}
+
+// A tab click shows its links in place, so the header does not load again.
+// Each tab is also a full link, for a new tab, a copied URL, or no script.
+var tabs = document.querySelectorAll('.tab[data-section]');
+
+function showSection(slug) {
+  tabs.forEach(function (tab) {
+    if (tab.dataset.section === slug) {
+      tab.setAttribute('aria-current', 'page');
+    } else {
+      tab.removeAttribute('aria-current');
+    }
+  });
+  document.querySelectorAll('.links[data-section]').forEach(function (list) {
+    list.hidden = list.dataset.section !== slug;
+  });
+}
+
+tabs.forEach(function (tab) {
+  tab.addEventListener('click', function (event) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    event.preventDefault();
+    if (tab.getAttribute('aria-current') === 'page') {
+      return;
+    }
+    showSection(tab.dataset.section);
+    history.pushState({ section: tab.dataset.section }, '', tab.href);
+  });
+});
+
+if (tabs.length) {
+  var opened = document.querySelector('.tab[aria-current="page"]').dataset.section;
+  history.replaceState({ section: opened }, '');
+  addEventListener('popstate', function (event) {
+    showSection(event.state && event.state.section ? event.state.section : opened);
   });
 }
 """
@@ -529,14 +641,69 @@ def _one_line(tagline: str) -> str:
     return _LINE_BREAK_RUN.sub(" ", tagline).strip()
 
 
-def render_page(model: PageModel, year: int | None = None) -> str:
-    """`year` is the footer's copyright year, read from the clock when it is None.
+def _render_tab(tab: Section, is_current: bool, profile_slug: str) -> str:
+    href = escape_html(f"/links/{profile_slug}/{tab.slug}")
+    current = ' aria-current="page"' if is_current else ""
+    section = escape_html(tab.slug)
+    return (
+        f'        <a class="tab" href="{href}" data-section="{section}"{current}>'
+        f"{escape_html(tab.title)}</a>"
+    )
 
+
+def _render_tabs(tabs: list[Section], current: Section, profile_slug: str) -> str:
+    """The tab row, or "" when the page has fewer than two sections."""
+    if len(tabs) < 2:
+        return ""
+    links = "\n".join(_render_tab(tab, tab is current, profile_slug) for tab in tabs)
+    return f"""
+    <nav class="tabs" aria-label="Sections">
+{links}
+    </nav>
+"""
+
+
+def _render_lists(tabs: list[Section], current: Section) -> str:
+    """One list of cards per tab. Only the current tab's list shows.
+
+    The page has every tab's cards, so the script can change tabs with no request.
+    """
+    if len(tabs) < 2:
+        cards = "\n".join(_render_card(card) for card in current.cards)
+        return f'      <div class="links">\n{cards}\n      </div>'
+    lists = []
+    for tab in tabs:
+        cards = "\n".join(_render_card(card) for card in tab.cards)
+        hidden = "" if tab is current else " hidden"
+        lists.append(
+            f'      <div class="links" data-section="{escape_html(tab.slug)}"{hidden}>\n'
+            f"{cards}\n      </div>"
+        )
+    return "\n".join(lists)
+
+
+def render_page(
+    model: PageModel,
+    year: int | None = None,
+    *,
+    profile_slug: str = "",
+    section_slug: str | None = None,
+) -> str:
+    """`year` is the footer's copyright year, read from the clock when it is None.
     Taking it as an argument keeps the golden test stable across a new year.
+
+    `section_slug` picks the tab to show, and None means the first one. The tabs link
+    to `/links/<profile_slug>/<section>`. Raises ValueError for a section the page
+    does not have.
     """
     footer_year = date.today().year if year is None else year
     tagline_text = _one_line(model.tagline)
-    cards = "\n".join(_render_card(card) for card in model.cards)
+    tabs = sections(model)
+    current = tabs[0] if section_slug is None else find_section(tabs, section_slug)
+    if current is None:
+        raise ValueError(f'the page has no section "{section_slug}"')
+    tabs_block = _render_tabs(tabs, current, profile_slug)
+    lists = _render_lists(tabs, current)
     socials = "\n".join(_render_social(social) for social in SOCIALS)
     socials_block = f"""      <nav class="socials" aria-label="Social">
 {socials}
@@ -563,11 +730,9 @@ def render_page(model: PageModel, year: int | None = None) -> str:
       <h1 class="name"><a class="logo-link" href="{LOGO_HREF}" aria-label="{escape_html(model.name)}"><span class="logo"></span></a></h1>
 {socials_block}
     </header>
-
+{tabs_block}
     <section>
-      <div class="links">
-{cards}
-      </div>
+{lists}
     </section>
 
     <footer class="footer">&copy; {footer_year} render.com</footer>

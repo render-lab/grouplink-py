@@ -23,6 +23,8 @@ from grouplink.page import (
     escape_html,
     render_page,
     safe_url,
+    section_slug,
+    sections,
 )
 from scripts.placeholder import PROFILES, TAGLINE, SeedProfile
 
@@ -210,3 +212,116 @@ class TestEscapeHtmlAndSafeUrl:
         assert safe_url("https://render.com") == "https://render.com/"
         assert safe_url("HTTPS://RENDER.COM:443/a/../b") == "https://render.com/b"
         assert safe_url("https://render.com/a b") == "https://render.com/a%20b"
+
+
+def card(title: str, section: str = "") -> LinkCard:
+    return LinkCard(
+        title, f"https://example.com/{title}", "", icon_url="", icon="arrow", section=section
+    )
+
+
+TABBED = PageModel(
+    name="Render",
+    tagline="",
+    cards=[
+        card("loose-1"),
+        card("startup-1", "Startups"),
+        card("agent-1", "AI Agents"),
+        card("startup-2", "startups"),
+        card("bang", "!!!"),
+        card("loose-2"),
+    ],
+)
+
+
+class TestSectionSlug:
+    @pytest.mark.parametrize(
+        ("title", "slug"),
+        [
+            ("Startups", "startups"),
+            ("AI Agents", "ai-agents"),
+            ("big_ideas", "big-ideas"),
+            (" Q&A 2026! ", "qa-2026"),
+            ("!!!", ""),
+            ("", ""),
+        ],
+    )
+    def test_lowercases_and_drops_other_characters(self, title: str, slug: str) -> None:
+        assert section_slug(title) == slug
+
+
+class TestSections:
+    def test_orders_tabs_by_their_first_card_and_puts_empty_sections_in_the_first(self) -> None:
+        tabs = sections(TABBED)
+        assert [(tab.title, tab.slug) for tab in tabs] == [
+            ("Startups", "startups"),
+            ("AI Agents", "ai-agents"),
+        ]
+        assert [c.title for c in tabs[0].cards] == [
+            "loose-1",
+            "startup-1",
+            "startup-2",
+            "bang",
+            "loose-2",
+        ]
+        assert [c.title for c in tabs[1].cards] == ["agent-1"]
+
+    def test_makes_one_untitled_section_when_no_card_has_one(self) -> None:
+        tabs = sections(MODEL)
+        assert [(tab.title, tab.slug, len(tab.cards)) for tab in tabs] == [("", "", 2)]
+
+    def test_makes_one_section_for_a_page_with_no_cards(self) -> None:
+        assert [(tab.slug, tab.cards) for tab in sections(replace(MODEL, cards=[]))] == [("", [])]
+
+
+class TestTabs:
+    def test_renders_no_tabs_below_two_sections(self) -> None:
+        one = replace(MODEL, cards=[card("a", "Startups"), card("b")])
+        assert 'class="tabs"' not in render_page(one, profile_slug="shifra")
+
+    def test_opens_the_first_tab_by_default(self) -> None:
+        html = render_page(TABBED, profile_slug="shifra")
+        assert (
+            '<a class="tab" href="/links/shifra/startups" data-section="startups"'
+            ' aria-current="page">Startups</a>'
+        ) in html
+        assert (
+            '<a class="tab" href="/links/shifra/ai-agents" data-section="ai-agents">AI Agents</a>'
+        ) in html
+        assert '<div class="links" data-section="startups">' in html
+        assert '<div class="links" data-section="ai-agents" hidden>' in html
+
+    def test_opens_the_named_tab(self) -> None:
+        html = render_page(TABBED, profile_slug="shifra", section_slug="ai-agents")
+        assert 'data-section="startups">Startups</a>' in html
+        assert 'data-section="ai-agents" aria-current="page">AI Agents</a>' in html
+        assert '<div class="links" data-section="startups" hidden>' in html
+        assert '<div class="links" data-section="ai-agents">' in html
+
+    def test_puts_each_tab_cards_in_its_own_list(self) -> None:
+        html = render_page(TABBED, profile_slug="shifra")
+        hidden_list = html.index('data-section="ai-agents" hidden>')
+        assert html.index('href="https://example.com/loose-2"') < hidden_list
+        assert html.index('href="https://example.com/agent-1"') > hidden_list
+
+    def test_renders_one_plain_list_with_no_tabs(self) -> None:
+        html = render_page(MODEL, profile_slug="shifra")
+        assert '<div class="links">' in html
+        assert '<div class="links" data-section' not in html
+
+    def test_puts_the_tabs_between_the_socials_and_the_links(self) -> None:
+        html = render_page(TABBED, profile_slug="shifra")
+        assert (
+            html.index('class="socials"') < html.index('class="tabs"') < html.index('class="links"')
+        )
+        assert '<nav class="tabs" aria-label="Sections">' in html
+
+    def test_escapes_tab_titles(self) -> None:
+        model = PageModel("Render", "", [card("a", "<b>Bold</b>"), card("b", "Other")])
+        html = render_page(model, profile_slug="shifra")
+        assert ">&lt;b&gt;Bold&lt;/b&gt;</a>" in html
+        assert "<b>Bold</b>" not in html
+
+    def test_refuses_a_section_the_page_does_not_have(self) -> None:
+        with pytest.raises(ValueError, match="nope"):
+            render_page(TABBED, profile_slug="shifra", section_slug="nope")

@@ -285,3 +285,48 @@ async def test_keeps_the_newer_snapshot_when_an_older_read_finishes_last() -> No
 
     # The read fails, so the store answers with its last good copy.
     assert await store.snapshot() == fast
+
+
+def tab_card(title: str, section: str) -> LinkCard:
+    return LinkCard(
+        title, f"https://example.com/{title}", "", icon_url="", icon="arrow", section=section
+    )
+
+
+TABBED = PageModel(
+    name="Tabbed",
+    tagline="",
+    cards=[tab_card("startup", "Startups"), tab_card("agent", "AI Agents")],
+)
+
+
+@pytest.fixture
+def tabbed() -> App:
+    return App(snapshot(shifra=TABBED, alex=ALEX))
+
+
+@pytest.mark.parametrize("prefix", ["", "/links"])
+def test_serves_the_first_tab_at_the_profile_path(tabbed: App, prefix: str) -> None:
+    first = render_page(TABBED, profile_slug="shifra")
+    assert tabbed.client.get(f"{prefix}/shifra").text == first
+    assert tabbed.client.get(f"{prefix}/shifra/").text == first
+
+
+@pytest.mark.parametrize("prefix", ["", "/links"])
+def test_serves_a_tab_at_its_section_path(tabbed: App, prefix: str) -> None:
+    agents = render_page(TABBED, profile_slug="shifra", section_slug="ai-agents")
+    assert tabbed.client.get(f"{prefix}/shifra/ai-agents").text == agents
+    assert tabbed.client.get(f"{prefix}/shifra/ai-agents/").text == agents
+
+
+@pytest.mark.parametrize("prefix", ["", "/links"])
+def test_answers_an_unknown_section_with_a_404_page(tabbed: App, prefix: str) -> None:
+    for path in ("/shifra/nobody", "/alex/startups", "/nobody/startups"):
+        response = tabbed.client.get(f"{prefix}{path}")
+        assert response.status_code == 404, path
+        assert "text/html" in response.headers["content-type"]
+
+
+@pytest.mark.parametrize("path", ["/", "/links", "/links/"])
+def test_serves_the_first_tab_of_the_default_profile(tabbed: App, path: str) -> None:
+    assert tabbed.client.get(path).text == render_page(TABBED, profile_slug="shifra")

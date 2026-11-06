@@ -21,6 +21,7 @@ from redis.asyncio import Redis
 from render_lab_triggers import create_dispatch_server, render_dispatcher
 from render_lab_triggers.types import WorkflowDispatcher
 from starlette.applications import Starlette
+from starlette.convertors import Convertor, register_url_convertor
 from starlette.datastructures import MutableHeaders
 from starlette.middleware import Middleware
 from starlette.requests import Request
@@ -30,6 +31,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from grouplink.config import env_int
+from grouplink.links import RESERVED_SLUGS
 from grouplink.logs import configure as configure_logging
 from grouplink.notion_webhook import (
     DEFAULT_DEBOUNCE_MS,
@@ -48,6 +50,39 @@ ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 # onrender.com URL asks for /links/assets/, so the service serves both paths.
 ASSET_PATHS = ("/assets", "/links/assets")
 FONT_PATHS = tuple(f"{path}/fonts/" for path in ASSET_PATHS)
+
+
+class ProfileSlug(Convertor[str]):
+    """A path segment that is not a reserved slug.
+
+    Without it, `/{slug}/{section}` would match GET /webhooks/notion, and the
+    service would answer with a page instead of 405.
+    """
+
+    regex = f"(?!(?:{'|'.join(sorted(RESERVED_SLUGS))})(?:/|$))[^/]+"
+
+    def convert(self, value: str) -> str:
+        return value
+
+    def to_string(self, value: str) -> str:
+        return value
+
+
+register_url_convertor("profile", ProfileSlug())
+
+#: The page routes after "/". The pages use the same two prefixes as the assets.
+PAGE_PATHS = (
+    "/links",
+    "/links/",
+    "/links/{slug}",
+    "/links/{slug}/",
+    "/links/{slug}/{section}",
+    "/links/{slug}/{section}/",
+    "/{slug}",
+    "/{slug}/",
+    "/{slug:profile}/{section}",
+    "/{slug:profile}/{section}/",
+)
 
 NOT_FOUND_HTML = (
     '<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -117,7 +152,7 @@ def create_app(
             )
 
         slug = request.path_params.get("slug", snapshot.default_slug)
-        rendered = store.page(snapshot, slug)
+        rendered = store.page(snapshot, slug, request.path_params.get("section"))
         if rendered is None:
             return HTMLResponse(NOT_FOUND_HTML, status_code=404)
 
@@ -160,8 +195,8 @@ def create_app(
             Route("/tasks/{task}", dispatch_server, methods=["POST"]),
             Route("/webhooks/notion", notion, methods=["POST"]),
             *(Mount(path, StaticFiles(directory=ASSETS_DIR)) for path in ASSET_PATHS),
-            Route("/{slug}", page, methods=["GET"]),
-            Route("/{slug}/", page, methods=["GET"]),
+            # `links` is a reserved slug, so no profile can shadow the /links routes.
+            *(Route(path, page, methods=["GET"]) for path in PAGE_PATHS),
         ],
         middleware=[Middleware(ResponseHeaders)],
         lifespan=lifespan,

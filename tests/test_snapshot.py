@@ -22,6 +22,7 @@ SHIFRA = PageModel(
             description="Guides",
             icon_url="https://render.com/favicon.ico",
             icon="info",
+            section="Startups",
         )
     ],
 )
@@ -55,6 +56,7 @@ def test_writes_the_documented_shape() -> None:
                 "description": "Guides",
                 "iconUrl": "https://render.com/favicon.ico",
                 "icon": "info",
+                "section": "Startups",
             }
         ],
     }
@@ -104,3 +106,10 @@ def test_draws_the_default_icon_for_an_icon_this_build_does_not_know() -> None:
     doc["pages"][0]["cards"][0]["icon"] = "rocket"
     snapshot = parse_snapshot(json.dumps(doc))
     assert snapshot.pages["shifra"].cards[0].icon == "arrow"
+
+
+def test_reads_a_card_with_no_section_as_the_first_tab() -> None:
+    doc = json.loads(build())
+    del doc["pages"][0]["cards"][0]["section"]
+    snapshot = parse_snapshot(json.dumps(doc))
+    assert snapshot.pages["shifra"].cards[0].section == ""

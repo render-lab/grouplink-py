@@ -15,7 +15,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date
 
-from grouplink.page import render_page
+from grouplink.page import find_section, render_page, sections
 from grouplink.snapshot import Snapshot, parse_snapshot
 
 log = logging.getLogger(__name__)
@@ -56,8 +56,8 @@ class SiteStore:
         #: A slow read that finishes after a newer one must not replace its result.
         self._reads = 0
         self._last_good_read = 0
-        #: (snapshot hash, slug, footer year) -> page. Holds one snapshot's pages.
-        self._rendered: dict[tuple[str, str, int], RenderedPage] = {}
+        #: (snapshot hash, slug, section, footer year) -> page. Holds one snapshot's pages.
+        self._rendered: dict[tuple[str, str, str | None, int], RenderedPage] = {}
 
     async def snapshot(self) -> Snapshot | None:
         """The current snapshot, or the last good one. None when there is neither."""
@@ -87,17 +87,24 @@ class SiteStore:
         self._rebuild_started_at = None
         return snapshot
 
-    def page(self, snapshot: Snapshot, slug: str) -> RenderedPage | None:
-        """The rendered page for `slug`, or None when the snapshot has no such page."""
+    def page(
+        self, snapshot: Snapshot, slug: str, section: str | None = None
+    ) -> RenderedPage | None:
+        """The rendered page for `slug`, open at the tab `section`, or None when the
+        snapshot has no such page or the page has no such section. A `section` of
+        None opens the first tab.
+        """
         model = snapshot.pages.get(slug)
         if model is None:
             return None
+        if section is not None and find_section(sections(model), section) is None:
+            return None
 
         year = date.today().year
-        key = (snapshot.hash, slug, year)
+        key = (snapshot.hash, slug, section, year)
         page = self._rendered.get(key)
         if page is None:
-            html = render_page(model, year)
+            html = render_page(model, year, profile_slug=slug, section_slug=section)
             page = RenderedPage(html=html, etag=f'"{hashlib.sha256(html.encode()).hexdigest()}"')
             self._rendered[key] = page
         return page

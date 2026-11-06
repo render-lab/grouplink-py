@@ -11,7 +11,7 @@ from render_lab_tasks_notion.types import PageDTO, PropertyValue
 from grouplink.icons import DEFAULT_ICON, IconName, is_icon_name
 from grouplink.jsurl import is_http_url, is_mailto_url, normalize_url
 from grouplink.jsurl import parse as parse_url
-from grouplink.page import LinkCard
+from grouplink.page import LinkCard, section_slug
 
 
 @dataclass(frozen=True)
@@ -27,10 +27,12 @@ class LinkRow:
     icon: IconName
     #: The `Order` cell. None when the cell is empty or holds no number.
     order: float | None
+    #: The `Section` cell: the title of the tab the link shows in. May be empty.
+    section: str = ""
 
 
 class CardSource(Protocol):
-    """The three fields a card needs from a row, so the seed links fit too."""
+    """The fields a card needs from a row, so the seed links fit too."""
 
     @property
     def title(self) -> str: ...
@@ -40,6 +42,9 @@ class CardSource(Protocol):
 
     @property
     def icon(self) -> IconName: ...
+
+    @property
+    def section(self) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -54,7 +59,7 @@ class ProfileRow:
 
 @dataclass(frozen=True)
 class ProfilePage:
-    """A profile and the links that relate to it, in `Order`."""
+    """A profile and the links that relate to it, in `page_order`."""
 
     profile: ProfileRow
     rows: list[LinkRow]
@@ -114,24 +119,41 @@ def read_link_row(page: PageDTO) -> LinkRow:
         profile_ids=_profile_ids(props.get("Profiles")),
         icon=to_icon_name(props.get("Icon")),
         order=_read_order(props.get("Order")),
+        section=_read_string(props.get("Section")),
     )
 
 
-#: The links query sort. Rows with the same `Order` go oldest first.
+#: The links query sort. Notion sorts a select by the order of its options, so the
+#: rows come in tab order. Rows with the same `Order` go oldest first.
 LINK_SORTS: list[dict[str, str]] = [
+    {"property": "Section", "direction": "ascending"},
     {"property": "Order", "direction": "ascending"},
     {"timestamp": "created_time", "direction": "ascending"},
 ]
 
 
-def unnumbered_last(rows: list[LinkRow]) -> list[LinkRow]:
-    """The rows with an `Order`, then the rows without one, each group in input order.
+def section_ranks(rows: list[LinkRow]) -> dict[str, int]:
+    """The position of each section slug, in the order the rows give them."""
+    slugs = (section_slug(row.section) for row in rows)
+    return {slug: rank for rank, slug in enumerate(dict.fromkeys(s for s in slugs if s))}
 
-    The Notion API does not say where a sort puts empty numbers, so this puts them last.
+
+def page_order(rows: list[LinkRow], ranks: Mapping[str, int]) -> list[LinkRow]:
+    """One page's rows, tab by tab, and in `Order` in each tab.
+
+    A row with no section goes in the page's first tab, as `sections` puts it. A row
+    with no `Order` goes last in its tab, because the Notion API does not say where a
+    sort puts empty numbers. Rows that tie keep their input order.
     """
-    numbered = [row for row in rows if row.order is not None]
-    unnumbered = [row for row in rows if row.order is None]
-    return numbered + unnumbered
+    slugs = [section_slug(row.section) for row in rows]
+    first = min((ranks[slug] for slug in slugs if slug), default=0)
+
+    def key(item: tuple[str, LinkRow]) -> tuple[int, bool, float]:
+        slug, row = item
+        rank = ranks[slug] if slug else first
+        return (rank, row.order is None, row.order or 0)
+
+    return [row for _, row in sorted(zip(slugs, rows, strict=True), key=key)]
 
 
 def is_renderable_url(url: str) -> bool:
@@ -270,12 +292,16 @@ def group_by_profile(rows: list[LinkRow], profiles: list[ProfileRow]) -> list[Pr
 
     A link related to two profiles appears in both, and one with `everyone` set appears
     on every page. The two are a union, so a row with both set is redundant rather
-    than contradictory.
+    than contradictory. Each page's rows are in `page_order`, with the tabs in the
+    order the input rows give them.
     """
+    ranks = section_ranks(rows)
     return [
         ProfilePage(
             profile=profile,
-            rows=[row for row in rows if row.everyone or profile.id in row.profile_ids],
+            rows=page_order(
+                [row for row in rows if row.everyone or profile.id in row.profile_ids], ranks
+            ),
         )
         for profile in profiles
     ]
@@ -336,6 +362,7 @@ def to_card(row: CardSource, description: str) -> LinkCard:
         description=description,
         icon_url=favicon_url(row.url),
         icon=row.icon,
+        section=row.section,
     )
 
 
