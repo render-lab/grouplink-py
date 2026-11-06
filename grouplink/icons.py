@@ -18,6 +18,7 @@ IconName = Literal[
     "form",
     "info",
     "render",
+    "sandbox",
     "upload",
     "workflows",
 ]
