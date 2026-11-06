@@ -19,11 +19,13 @@ from grouplink.links import (
     ProfileRow,
     assert_default_slug,
     group_by_profile,
+    section_ranks,
     servable_profiles,
     to_link_rows,
     to_profile_rows,
     visible_rows,
 )
+from grouplink.notion_schema import read_select_options
 
 
 @dataclass(frozen=True)
@@ -34,28 +36,31 @@ class NotionSite:
     link_pages: list[PageDTO]
     profiles: list[ProfileRow]
     #: One page per profile whose slug the web service can serve. Each page holds
-    #: its visible rows, in `Order`.
+    #: its visible rows, in `page_order`.
     pages: list[ProfilePage]
 
 
 async def read_notion_site(ctx: TaskContext, cfg: RebuildConfig) -> NotionSite:
-    """Two runs in parallel.
+    """Three runs in parallel.
 
     A link's `Profiles` relation holds the Notion page ids of its Profiles rows, which
-    is how the two join. Notion sorts the links by `Section`, then `Order`. The
-    profiles need no sort.
+    is how the two join. Notion sorts the links by `Order`. The profiles need no sort.
+    The tabs are in the order of the `Section` options in the links database schema.
     """
-    link_pages, profile_pages = await asyncio.gather(
+    link_pages, profile_pages, section_options = await asyncio.gather(
         ctx.run(
             query_database,
             {"databaseId": cfg.database_id, "sorts": LINK_SORTS, "limit": cfg.limit},
         ),
         ctx.run(query_database, {"databaseId": cfg.profiles_database_id, "limit": cfg.limit}),
+        ctx.run(read_select_options, {"databaseId": cfg.database_id, "property": "Section"}),
     )
 
     profiles = to_profile_rows(profile_pages)
     servable = servable_profiles(profiles)
     assert_default_slug(servable, cfg.default_slug)
-    pages = group_by_profile(visible_rows(to_link_rows(link_pages)), servable)
+    pages = group_by_profile(
+        visible_rows(to_link_rows(link_pages)), servable, section_ranks(section_options)
+    )
 
     return NotionSite(link_pages=link_pages, profiles=profiles, pages=pages)

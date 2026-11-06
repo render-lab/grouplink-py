@@ -11,7 +11,7 @@ from render_lab_tasks_notion.types import PageDTO, PropertyValue
 from grouplink.icons import DEFAULT_ICON, IconName, is_icon_name
 from grouplink.jsurl import is_http_url, is_mailto_url, normalize_url
 from grouplink.jsurl import parse as parse_url
-from grouplink.page import LinkCard, section_slug
+from grouplink.page import MISC_SLUG, LinkCard, section_slug, tab_slug
 
 
 @dataclass(frozen=True)
@@ -123,37 +123,38 @@ def read_link_row(page: PageDTO) -> LinkRow:
     )
 
 
-#: The links query sort. Notion sorts a select by the order of its options, so the
-#: rows come in tab order. Rows with the same `Order` go oldest first.
+#: The links query sort. Rows with the same `Order` go oldest first.
 LINK_SORTS: list[dict[str, str]] = [
-    {"property": "Section", "direction": "ascending"},
     {"property": "Order", "direction": "ascending"},
     {"timestamp": "created_time", "direction": "ascending"},
 ]
 
 
-def section_ranks(rows: list[LinkRow]) -> dict[str, int]:
-    """The position of each section slug, in the order the rows give them."""
-    slugs = (section_slug(row.section) for row in rows)
+def section_ranks(options: list[str]) -> dict[str, int]:
+    """The position of each section slug, from the `Section` options in Notion order.
+
+    Options with the same slug share the rank of the first one.
+    """
+    slugs = (section_slug(option) for option in options)
     return {slug: rank for rank, slug in enumerate(dict.fromkeys(s for s in slugs if s))}
 
 
 def page_order(rows: list[LinkRow], ranks: Mapping[str, int]) -> list[LinkRow]:
     """One page's rows, tab by tab, and in `Order` in each tab.
 
-    A row with no section goes in the page's first tab, as `sections` puts it. A row
-    with no `Order` goes last in its tab, because the Notion API does not say where a
-    sort puts empty numbers. Rows that tie keep their input order.
+    A section that `ranks` does not have goes after the others. This happens when an
+    option is added between the schema read and the query. A row with no section
+    goes in the Misc tab, as `sections` puts it, and Misc goes last unless `ranks`
+    has it. A row with no `Order` goes last in its tab, because the Notion API does
+    not say where a sort puts empty numbers. Rows that tie keep their input order.
     """
-    slugs = [section_slug(row.section) for row in rows]
-    first = min((ranks[slug] for slug in slugs if slug), default=0)
 
-    def key(item: tuple[str, LinkRow]) -> tuple[int, bool, float]:
-        slug, row = item
-        rank = ranks[slug] if slug else first
-        return (rank, row.order is None, row.order or 0)
+    def key(row: LinkRow) -> tuple[int, bool, float]:
+        slug = tab_slug(row.section)
+        unranked = len(ranks) + (slug == MISC_SLUG)
+        return (ranks.get(slug, unranked), row.order is None, row.order or 0)
 
-    return [row for _, row in sorted(zip(slugs, rows, strict=True), key=key)]
+    return sorted(rows, key=key)
 
 
 def is_renderable_url(url: str) -> bool:
@@ -287,15 +288,15 @@ def unservable_profiles(profiles: list[ProfileRow]) -> list[SkippedRow]:
     return _split_profiles(profiles)[1]
 
 
-def group_by_profile(rows: list[LinkRow], profiles: list[ProfileRow]) -> list[ProfilePage]:
+def group_by_profile(
+    rows: list[LinkRow], profiles: list[ProfileRow], ranks: Mapping[str, int]
+) -> list[ProfilePage]:
     """One bundle per profile.
 
     A link related to two profiles appears in both, and one with `everyone` set appears
     on every page. The two are a union, so a row with both set is redundant rather
-    than contradictory. Each page's rows are in `page_order`, with the tabs in the
-    order the input rows give them.
+    than contradictory. Each page's rows are in `page_order`.
     """
-    ranks = section_ranks(rows)
     return [
         ProfilePage(
             profile=profile,

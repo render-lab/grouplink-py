@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -59,7 +60,7 @@ class ProfileSlug(Convertor[str]):
     service would answer with a page instead of 405.
     """
 
-    regex = f"(?!(?:{'|'.join(sorted(RESERVED_SLUGS))})(?:/|$))[^/]+"
+    regex = f"(?!(?:{'|'.join(map(re.escape, sorted(RESERVED_SLUGS)))})(?:/|$))[^/]+"
 
     def convert(self, value: str) -> str:
         return value

@@ -122,31 +122,61 @@ class TestOrder:
         assert [row.order for row in rows] == [10, 2.5, 0, None, None, None, None]
 
 
-def ordered(*cells: tuple[str, str, float | None]) -> list[str]:
-    """Titles in `page_order`, for rows given as (title, section, order)."""
+def ordered(*cells: tuple[str, str, float | None], options: list[str] | None = None) -> list[str]:
+    """Titles in `page_order`, for rows given as (title, section, order).
+
+    The options default to the sections in the order the rows first give them.
+    """
     rows = to_link_rows(
         [
             page({"URL": f"https://{title}.example", "Section": section, "Order": order}, title)
             for title, section, order in cells
         ]
     )
-    return [row.title for row in page_order(rows, section_ranks(rows))]
+    if options is None:
+        options = [section for _, section, _ in cells]
+    return [row.title for row in page_order(rows, section_ranks(options))]
 
 
 class TestPageOrder:
-    def test_puts_the_tabs_in_input_order_and_each_tab_in_order(self) -> None:
+    def test_puts_the_tabs_in_option_order(self) -> None:
+        assert ordered(
+            ("agents-1", "AI Agents", 1),
+            ("startups-2", "Startups", 2),
+            ("workflows-3", "Workflows", 3),
+            options=["Workflows", "AI Agents", "Startups"],
+        ) == ["workflows-3", "agents-1", "startups-2"]
+
+    def test_puts_a_section_with_no_option_after_the_others(self) -> None:
+        assert ordered(
+            ("new-1", "New", 1),
+            ("agents-2", "AI Agents", 2),
+            options=["AI Agents"],
+        ) == ["agents-2", "new-1"]
+
+    def test_puts_each_tab_in_order(self) -> None:
         assert ordered(
             ("agents-20", "AI Agents", 20),
             ("agents-5", "AI Agents", 5),
             ("startups-1", "Startups", 1),
         ) == ["agents-5", "agents-20", "startups-1"]
 
-    def test_puts_a_row_with_no_section_in_the_first_tab_by_order(self) -> None:
+    def test_puts_rows_with_no_section_last_by_order(self) -> None:
         assert ordered(
-            ("agents-20", "AI Agents", 20),
-            ("startups-1", "Startups", 1),
             ("loose-10", "", 10),
-        ) == ["loose-10", "agents-20", "startups-1"]
+            ("agents-20", "AI Agents", 20),
+            ("loose-5", "", 5),
+            ("new-1", "New", 1),
+            options=["AI Agents"],
+        ) == ["agents-20", "new-1", "loose-5", "loose-10"]
+
+    def test_puts_rows_with_no_section_in_a_misc_option_by_its_rank(self) -> None:
+        assert ordered(
+            ("agents-1", "AI Agents", 1),
+            ("loose-2", "", 2),
+            ("misc-3", "Misc", 3),
+            options=["Misc", "AI Agents"],
+        ) == ["loose-2", "misc-3", "agents-1"]
 
     def test_moves_rows_with_no_order_to_the_end_of_their_tab(self) -> None:
         assert ordered(
@@ -159,15 +189,11 @@ class TestPageOrder:
     def test_keeps_input_order_with_no_sections(self) -> None:
         assert ordered(("b", "", 2), ("empty", "", None), ("a", "", 1)) == ["a", "b", "empty"]
 
-    def test_ranks_values_with_one_slug_as_one_tab(self) -> None:
-        rows = to_link_rows(
-            [
-                page({"URL": "https://a.example", "Section": "Startups"}, "A"),
-                page({"URL": "https://b.example", "Section": "AI Agents"}, "B"),
-                page({"URL": "https://c.example", "Section": "startups"}, "C"),
-            ]
-        )
-        assert section_ranks(rows) == {"startups": 0, "ai-agents": 1}
+    def test_ranks_options_with_one_slug_as_one_tab(self) -> None:
+        assert section_ranks(["Startups", "AI Agents", "startups", "!!"]) == {
+            "startups": 0,
+            "ai-agents": 1,
+        }
 
     def test_uses_the_ranks_of_every_row_for_one_page(self) -> None:
         rows = to_link_rows(
@@ -226,7 +252,7 @@ class TestGroupByProfile:
     )
 
     def titles_for(self, slug: str) -> list[str]:
-        grouped = group_by_profile(self.rows, self.profiles)
+        grouped = group_by_profile(self.rows, self.profiles, {})
         return [row.title for p in grouped if p.profile.slug == slug for row in p.rows]
 
     def test_puts_an_everyone_row_on_every_page(self) -> None:

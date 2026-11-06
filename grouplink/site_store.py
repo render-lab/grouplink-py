@@ -97,14 +97,14 @@ class SiteStore:
         model = snapshot.pages.get(slug)
         if model is None:
             return None
-        if section is not None and find_section(sections(model), section) is None:
-            return None
 
         year = date.today().year
         key = (snapshot.hash, slug, section, year)
         page = self._rendered.get(key)
         if page is None:
-            html = render_page(model, year, profile_slug=slug, section_slug=section)
+            if section is not None and find_section(sections(model), section) is None:
+                return None
+            html = render_page(model, year, profile_slug=slug, section=section)
             page = RenderedPage(html=html, etag=f'"{hashlib.sha256(html.encode()).hexdigest()}"')
             self._rendered[key] = page
         return page

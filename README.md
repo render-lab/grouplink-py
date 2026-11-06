@@ -34,7 +34,7 @@ The links database has the following properties:
 | `Profiles` | relation | The profiles whose pages show the link                     |
 | `Icon`     | select   | A file name from `grouplink/assets/link-icons/`. Empty means `arrow`. |
 | `Order`    | number   | Card position, lowest first. Required.                     |
-| `Section`  | select   | The tab the link shows in. Empty means the first tab.      |
+| `Section`  | select   | The tab the link shows in. Empty means the Misc tab.       |
 
 The profiles database has the following properties:
 
@@ -48,7 +48,7 @@ The profile named by `SITE_DEFAULT_SLUG` is also served at `/`. The slugs `asset
 
 ### Sections
 
-A page with links in two or more sections shows a row of tabs above the links. The tabs are in the order of the `Section` options. To move a tab, drag its option in the property settings. Inside each tab, the links are in `Order`, and links with no `Order` go last. A link with no section shows in the first tab. A page with fewer than two sections shows no tabs and shows all its links in `Order`.
+A page with links in two or more sections shows a row of tabs above the links. The tabs are in the order of the `Section` options. To move a tab, drag its option in the property settings. Inside each tab, the links are in `Order`, and links with no `Order` go last. On a page where some links have a section, the links with no section show in a tab called Misc. Misc is the last tab, unless `Section` has a `Misc` option. A page with fewer than two tabs shows no tabs and shows all its links in `Order`. If the links database has no `Section` select property, every page shows no tabs.
 
 A click on a tab shows its links without loading the page again.
 

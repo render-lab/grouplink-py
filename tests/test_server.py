@@ -314,7 +314,7 @@ def test_serves_the_first_tab_at_the_profile_path(tabbed: App, prefix: str) -> N
 
 @pytest.mark.parametrize("prefix", ["", "/links"])
 def test_serves_a_tab_at_its_section_path(tabbed: App, prefix: str) -> None:
-    agents = render_page(TABBED, profile_slug="shifra", section_slug="ai-agents")
+    agents = render_page(TABBED, profile_slug="shifra", section="ai-agents")
     assert tabbed.client.get(f"{prefix}/shifra/ai-agents").text == agents
     assert tabbed.client.get(f"{prefix}/shifra/ai-agents/").text == agents
 

@@ -33,6 +33,7 @@ from render_lab_tasks_scrape.client import Deps as ScrapeDeps
 from render_lab_tasks_scrape.extract_metadata import extract_metadata_impl
 
 from grouplink.links import LINK_SORTS
+from grouplink.notion_schema import read_select_options_impl
 from grouplink.page import render_page
 from grouplink.rebuild import rebuild
 from grouplink.snapshot import SITE_KEY, Snapshot, parse_snapshot
@@ -62,8 +63,11 @@ def raw_page(
     profiles: list[str] | None = None,
     everyone: bool = False,
     order: float | None = None,
+    section: str | None = None,
 ) -> dict[str, Any]:
-    """`n` only makes the Notion page id unique. An `order` of None is an empty cell."""
+    """`n` only makes the Notion page id unique. An `order` or `section` of None is an
+    empty cell.
+    """
     return {
         "id": f"p-{n}",
         "url": f"https://www.notion.so/p-{n}",
@@ -79,6 +83,7 @@ def raw_page(
                 "relation": [{"id": id} for id in ([SHIFRA] if profiles is None else profiles)],
             },
             "Order": {"type": "number", "number": order},
+            "Section": {"type": "select", "select": section and {"name": section}},
         },
     }
 
@@ -142,6 +147,8 @@ class Fakes:
     profiles: list[dict[str, Any]] | None = None
     #: The snapshot Key Value already holds.
     site: str | None = None
+    #: The `Section` options in the links database schema, in Notion order.
+    section_options: list[str] = field(default_factory=list)
 
 
 class Harness:
@@ -181,6 +188,14 @@ class Harness:
                 rows = self.fakes.links if self.fakes.links is not None else LINK_PAGES
             return httpx.Response(
                 200, json={"results": rows, "has_more": False, "next_cursor": None}
+            )
+        if path == "/v1/data_sources/ds-db_links" and request.method == "GET":
+            options = [{"name": name} for name in self.fakes.section_options]
+            return httpx.Response(
+                200,
+                json={
+                    "properties": {"Section": {"type": "select", "select": {"options": options}}}
+                },
             )
         raise AssertionError(f"no fake for Notion {request.method} {path}")
 
@@ -225,6 +240,9 @@ class Harness:
     async def run(self, task: Any, *args: Any) -> Any:
         routes: dict[str, Callable[[dict[str, Any]], Any]] = {
             "notion.queryDatabase": lambda a: query_database_impl(
+                self.ctx, a, deps=NotionDeps(notion=NotionPackClient(self._http, env=ENV))
+            ),
+            "grouplink.readSelectOptions": lambda a: read_select_options_impl(
                 self.ctx, a, deps=NotionDeps(notion=NotionPackClient(self._http, env=ENV))
             ),
             "scrape.extractMetadata": self._scrape,
@@ -291,6 +309,19 @@ class TestRebuild:
 
         assert h.notion_queries["ds-db_links"]["sorts"] == LINK_SORTS
         assert "sorts" not in h.notion_queries["ds-db_profiles"]
+
+    async def test_puts_the_tabs_in_the_order_of_the_section_options(self, env: Any) -> None:
+        h = harness(
+            links=[
+                raw_page("Agents link", "https://example.com/a", 1, order=1, section="AI Agents"),
+                raw_page("Startups link", "https://example.com/s", 2, order=2, section="Startups"),
+            ],
+            section_options=["Startups", "AI Agents"],
+        )
+        await rebuild.func(h.ctx, {})
+
+        html = h.html()
+        assert html.index('data-section="startups"') < html.index('data-section="ai-agents"')
 
     async def test_keeps_a_personal_row_in_its_place_among_the_everyone_rows(
         self, env: Any

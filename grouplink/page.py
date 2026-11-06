@@ -42,7 +42,7 @@ class LinkCard:
     icon_url: str
     #: Which file under grouplink/assets/link-icons the card draws in its left column.
     icon: IconName
-    #: The `Section` cell, which names the card's tab. Empty puts it in the first tab.
+    #: The `Section` cell, which names the card's tab. Empty puts it in the Misc tab.
     section: str = ""
 
 
@@ -79,24 +79,34 @@ def section_slug(title: str) -> str:
     return _NOT_SLUG.sub("", _SLUG_SEPARATORS.sub("-", title.strip().lower()))
 
 
+#: The tab for the cards with no section, on a page where other cards have one.
+MISC_TITLE = "Misc"
+MISC_SLUG = section_slug(MISC_TITLE)
+
+
+def tab_slug(section: str) -> str:
+    """The slug of the tab that a card with this `Section` value shows in."""
+    return section_slug(section) or MISC_SLUG
+
+
 def sections(model: PageModel) -> list[Section]:
     """The page's tabs, in the order of their first card.
 
     Values with the same slug are one tab, titled by the first value. A card with no
-    section, or one whose slug is empty, goes in the first tab. A page where no card
+    section, or one whose slug is empty, goes in the Misc tab. A page where no card
     has a section is one untitled section.
     """
-    titles: dict[str, str] = {}
-    for card in model.cards:
-        slug = section_slug(card.section)
-        if slug:
-            titles.setdefault(slug, card.section.strip())
+    if not any(section_slug(card.section) for card in model.cards):
+        return [Section("", "", list(model.cards))]
 
-    first = next(iter(titles), "")
-    grouped: dict[str, list[LinkCard]] = {slug: [] for slug in titles} or {"": []}
+    tabs: dict[str, Section] = {}
     for card in model.cards:
-        grouped[section_slug(card.section) or first].append(card)
-    return [Section(titles.get(slug, ""), slug, cards) for slug, cards in grouped.items()]
+        slug = tab_slug(card.section)
+        if slug not in tabs:
+            title = card.section.strip() if section_slug(card.section) else MISC_TITLE
+            tabs[slug] = Section(title, slug, [])
+        tabs[slug].cards.append(card)
+    return list(tabs.values())
 
 
 def find_section(tabs: list[Section], slug: str) -> Section | None:
@@ -687,21 +697,21 @@ def render_page(
     year: int | None = None,
     *,
     profile_slug: str = "",
-    section_slug: str | None = None,
+    section: str | None = None,
 ) -> str:
     """`year` is the footer's copyright year, read from the clock when it is None.
     Taking it as an argument keeps the golden test stable across a new year.
 
-    `section_slug` picks the tab to show, and None means the first one. The tabs link
+    `section` is the slug of the tab to show, and None means the first one. The tabs link
     to `/links/<profile_slug>/<section>`. Raises ValueError for a section the page
     does not have.
     """
     footer_year = date.today().year if year is None else year
     tagline_text = _one_line(model.tagline)
     tabs = sections(model)
-    current = tabs[0] if section_slug is None else find_section(tabs, section_slug)
+    current = tabs[0] if section is None else find_section(tabs, section)
     if current is None:
-        raise ValueError(f'the page has no section "{section_slug}"')
+        raise ValueError(f'the page has no section "{section}"')
     tabs_block = _render_tabs(tabs, current, profile_slug)
     lists = _render_lists(tabs, current)
     socials = "\n".join(_render_social(social) for social in SOCIALS)

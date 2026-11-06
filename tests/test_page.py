@@ -224,8 +224,8 @@ TABBED = PageModel(
     name="Render",
     tagline="",
     cards=[
-        card("loose-1"),
         card("startup-1", "Startups"),
+        card("loose-1"),
         card("agent-1", "AI Agents"),
         card("startup-2", "startups"),
         card("bang", "!!!"),
@@ -251,20 +251,24 @@ class TestSectionSlug:
 
 
 class TestSections:
-    def test_orders_tabs_by_their_first_card_and_puts_empty_sections_in_the_first(self) -> None:
+    def test_orders_tabs_by_their_first_card_and_puts_empty_sections_in_misc(self) -> None:
         tabs = sections(TABBED)
         assert [(tab.title, tab.slug) for tab in tabs] == [
             ("Startups", "startups"),
+            ("Misc", "misc"),
             ("AI Agents", "ai-agents"),
         ]
-        assert [c.title for c in tabs[0].cards] == [
-            "loose-1",
-            "startup-1",
-            "startup-2",
-            "bang",
-            "loose-2",
+        assert [c.title for c in tabs[0].cards] == ["startup-1", "startup-2"]
+        assert [c.title for c in tabs[1].cards] == ["loose-1", "bang", "loose-2"]
+        assert [c.title for c in tabs[2].cards] == ["agent-1"]
+
+    def test_merges_misc_with_a_section_called_misc(self) -> None:
+        model = replace(MODEL, cards=[card("a", "Startups"), card("b", "Misc"), card("c")])
+        tabs = sections(model)
+        assert [(tab.title, [c.title for c in tab.cards]) for tab in tabs] == [
+            ("Startups", ["a"]),
+            ("Misc", ["b", "c"]),
         ]
-        assert [c.title for c in tabs[1].cards] == ["agent-1"]
 
     def test_makes_one_untitled_section_when_no_card_has_one(self) -> None:
         tabs = sections(MODEL)
@@ -276,7 +280,7 @@ class TestSections:
 
 class TestTabs:
     def test_renders_no_tabs_below_two_sections(self) -> None:
-        one = replace(MODEL, cards=[card("a", "Startups"), card("b")])
+        one = replace(MODEL, cards=[card("a", "Startups"), card("b", "startups")])
         assert 'class="tabs"' not in render_page(one, profile_slug="shifra")
 
     def test_opens_the_first_tab_by_default(self) -> None:
@@ -292,7 +296,7 @@ class TestTabs:
         assert '<div class="links" data-section="ai-agents" hidden>' in html
 
     def test_opens_the_named_tab(self) -> None:
-        html = render_page(TABBED, profile_slug="shifra", section_slug="ai-agents")
+        html = render_page(TABBED, profile_slug="shifra", section="ai-agents")
         assert 'data-section="startups">Startups</a>' in html
         assert 'data-section="ai-agents" aria-current="page">AI Agents</a>' in html
         assert '<div class="links" data-section="startups" hidden>' in html
@@ -324,4 +328,4 @@ class TestTabs:
 
     def test_refuses_a_section_the_page_does_not_have(self) -> None:
         with pytest.raises(ValueError, match="nope"):
-            render_page(TABBED, profile_slug="shifra", section_slug="nope")
+            render_page(TABBED, profile_slug="shifra", section="nope")
