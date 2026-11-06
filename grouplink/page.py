@@ -620,6 +620,10 @@ def _render_card(card: LinkCard) -> str:
 # Where the wordmark in the masthead links.
 LOGO_HREF = "https://dashboard.render.com/"
 
+#: Link previews need an absolute URL, so this is the render.com path of
+#: assets/preview.png.
+PREVIEW_IMAGE_URL = "https://render.com/links/assets/preview.png"
+
 # The masthead's icon row. It is the same on every page and does not come from
 # Notion. Each label needs a matching file under grouplink/assets/icons and a
 # .social__icon--<label> rule in STYLES.
@@ -736,6 +740,11 @@ def render_page(
 <meta property="og:title" content="{escape_html(model.name)} — links">
 <meta property="og:description" content="{escape_html(tagline_text)}">
 <meta property="og:type" content="website">
+<meta property="og:image" content="{PREVIEW_IMAGE_URL}">
+<meta property="og:image:width" content="1600">
+<meta property="og:image:height" content="900">
+<meta property="og:image:alt" content="Render: Your fastest path to production">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/links/assets/render-logomark-black.svg" media="(prefers-color-scheme: light)">
 <link rel="icon" href="/links/assets/render-logomark-white.svg" media="(prefers-color-scheme: dark)">
 <style>{STYLES}</style>
