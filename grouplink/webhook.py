@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -22,23 +21,28 @@ from redis.asyncio import Redis
 from render_lab_triggers import create_dispatch_server, render_dispatcher
 from render_lab_triggers.types import WorkflowDispatcher
 from starlette.applications import Starlette
-from starlette.convertors import Convertor, register_url_convertor
 from starlette.datastructures import MutableHeaders
 from starlette.middleware import Middleware
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from starlette.responses import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from grouplink.config import env_int
-from grouplink.links import RESERVED_SLUGS
 from grouplink.logs import configure as configure_logging
 from grouplink.notion_webhook import (
     DEFAULT_DEBOUNCE_MS,
     NotionWebhook,
     WebhookRequest,
 )
+from grouplink.page import sections
 from grouplink.site_store import SiteStore
 from grouplink.snapshot import SITE_KEY
 
@@ -53,24 +57,6 @@ ASSET_PATHS = ("/assets", "/links/assets")
 FONT_PATHS = tuple(f"{path}/fonts/" for path in ASSET_PATHS)
 
 
-class ProfileSlug(Convertor[str]):
-    """A path segment that is not a reserved slug.
-
-    Without it, `/{slug}/{section}` would match GET /webhooks/notion, and the
-    service would answer with a page instead of 405.
-    """
-
-    regex = f"(?!(?:{'|'.join(map(re.escape, sorted(RESERVED_SLUGS)))})(?:/|$))[^/]+"
-
-    def convert(self, value: str) -> str:
-        return value
-
-    def to_string(self, value: str) -> str:
-        return value
-
-
-register_url_convertor("profile", ProfileSlug())
-
 #: The page routes after "/". The pages use the same two prefixes as the assets.
 PAGE_PATHS = (
     "/links",
@@ -81,8 +67,8 @@ PAGE_PATHS = (
     "/links/{slug}/{section}/",
     "/{slug}",
     "/{slug}/",
-    "/{slug:profile}/{section}",
-    "/{slug:profile}/{section}/",
+    "/{slug}/{section}",
+    "/{slug}/{section}/",
 )
 
 NOT_FOUND_HTML = (
@@ -144,6 +130,12 @@ def create_app(
     dispatch_server = create_dispatch_server(workflow_slug=workflow_slug, dispatcher=dispatcher)
 
     async def page(request: Request) -> Response:
+        # Slugs and section slugs are lowercase, so /Shifra/AI-Agents goes to
+        # /shifra/ai-agents.
+        path = request.url.path
+        if path != path.lower():
+            return _redirect(request, path.lower())
+
         snapshot = await store.snapshot()
         if snapshot is None:
             return PlainTextResponse(
@@ -153,7 +145,13 @@ def create_app(
             )
 
         slug = request.path_params.get("slug", snapshot.default_slug)
-        rendered = store.page(snapshot, slug, request.path_params.get("section"))
+        section = request.path_params.get("section")
+        model = snapshot.pages.get(slug)
+        # The first tab has one URL, the profile path, so /shifra/<first tab> goes to
+        # /shifra.
+        if section is not None and model is not None and sections(model)[0].slug == section:
+            return _redirect(request, path.rstrip("/").rsplit("/", 1)[0])
+        rendered = store.page(snapshot, slug, section)
         if rendered is None:
             return HTMLResponse(NOT_FOUND_HTML, status_code=404)
 
@@ -202,6 +200,30 @@ def create_app(
         middleware=[Middleware(ResponseHeaders)],
         lifespan=lifespan,
     )
+
+
+def _relative_url(path: str, target: str) -> str:
+    """A relative URL from `path` to `target`.
+
+    The URL is relative because render.com removes the `/links` prefix before the
+    request gets here. A relative URL keeps the prefix that the browser shows. It goes
+    up only to the first segment that changes.
+    """
+    segments = path.split("/")
+    target_segments = target.split("/")
+    first = next(
+        (i for i, (a, b) in enumerate(zip(segments, target_segments, strict=False)) if a != b),
+        min(len(segments), len(target_segments)),
+    )
+    first = min(first, len(segments) - 1, len(target_segments) - 1)
+    return "../" * (len(segments) - 1 - first) + "/".join(target_segments[first:])
+
+
+def _redirect(request: Request, target: str) -> Response:
+    location = _relative_url(request.url.path, target)
+    if request.url.query:
+        location += "?" + request.url.query
+    return RedirectResponse(location, status_code=301)
 
 
 async def _read_body(request: Request, limit: int) -> bytes | None:

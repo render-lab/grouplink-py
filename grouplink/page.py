@@ -651,8 +651,10 @@ def _one_line(tagline: str) -> str:
     return _LINE_BREAK_RUN.sub(" ", tagline).strip()
 
 
-def _render_tab(tab: Section, is_current: bool, profile_slug: str) -> str:
-    href = escape_html(f"/links/{profile_slug}/{tab.slug}")
+def _render_tab(tab: Section, is_current: bool, is_first: bool, profile_slug: str) -> str:
+    # The first tab's URL is the profile path, so each tab has one URL.
+    path = f"/links/{profile_slug}" if is_first else f"/links/{profile_slug}/{tab.slug}"
+    href = escape_html(path)
     current = ' aria-current="page"' if is_current else ""
     section = escape_html(tab.slug)
     return (
@@ -665,7 +667,9 @@ def _render_tabs(tabs: list[Section], current: Section, profile_slug: str) -> st
     """The tab row, or "" when the page has fewer than two sections."""
     if len(tabs) < 2:
         return ""
-    links = "\n".join(_render_tab(tab, tab is current, profile_slug) for tab in tabs)
+    links = "\n".join(
+        _render_tab(tab, tab is current, tab is tabs[0], profile_slug) for tab in tabs
+    )
     return f"""
     <nav class="tabs" aria-label="Sections">
 {links}
@@ -679,17 +683,19 @@ def _render_lists(tabs: list[Section], current: Section) -> str:
     The page has every tab's cards, so the script can change tabs with no request.
     """
     if len(tabs) < 2:
-        cards = "\n".join(_render_card(card) for card in current.cards)
-        return f'      <div class="links">\n{cards}\n      </div>'
-    lists = []
-    for tab in tabs:
-        cards = "\n".join(_render_card(card) for card in tab.cards)
-        hidden = "" if tab is current else " hidden"
-        lists.append(
-            f'      <div class="links" data-section="{escape_html(tab.slug)}"{hidden}>\n'
-            f"{cards}\n      </div>"
+        return _render_list(current.cards, "")
+    return "\n".join(
+        _render_list(
+            tab.cards,
+            f' data-section="{escape_html(tab.slug)}"' + ("" if tab is current else " hidden"),
         )
-    return "\n".join(lists)
+        for tab in tabs
+    )
+
+
+def _render_list(cards: list[LinkCard], attributes: str) -> str:
+    items = "\n".join(_render_card(card) for card in cards)
+    return f'      <div class="links"{attributes}>\n{items}\n      </div>'
 
 
 def render_page(

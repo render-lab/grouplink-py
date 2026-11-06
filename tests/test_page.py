@@ -292,7 +292,7 @@ class TestTabs:
     def test_opens_the_first_tab_by_default(self) -> None:
         html = render_page(TABBED, profile_slug="shifra")
         assert (
-            '<a class="tab" href="/links/shifra/startups" data-section="startups"'
+            '<a class="tab" href="/links/shifra" data-section="startups"'
             ' aria-current="page">Startups</a>'
         ) in html
         assert (

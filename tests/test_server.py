@@ -105,7 +105,7 @@ def test_answers_an_unknown_slug_with_a_404_page(app: App) -> None:
 
 
 def test_answers_a_reserved_slug_with_a_404_page(app: App) -> None:
-    for path in ("/tasks", "/webhooks", "/assets", "/links/assets"):
+    for path in ("/tasks", "/webhooks", "/webhooks/notion", "/tasks/x", "/assets", "/links/assets"):
         assert app.client.get(path).status_code == 404, path
 
 
@@ -330,3 +330,46 @@ def test_answers_an_unknown_section_with_a_404_page(tabbed: App, prefix: str) ->
 @pytest.mark.parametrize("path", ["/", "/links", "/links/"])
 def test_serves_the_first_tab_of_the_default_profile(tabbed: App, path: str) -> None:
     assert tabbed.client.get(path).text == render_page(TABBED, profile_slug="shifra")
+
+
+@pytest.mark.parametrize(
+    ("path", "location"),
+    [
+        ("/Shifra", "shifra"),
+        ("/shifra/AI-Agents", "ai-agents"),
+        ("/Shifra/AI-Agents", "../shifra/ai-agents"),
+        ("/Shifra/AI-Agents/", "../../shifra/ai-agents/"),
+        ("/links/shifra/AI-Agents", "ai-agents"),
+        ("/links/Shifra/ai-agents?x=1", "../shifra/ai-agents?x=1"),
+    ],
+)
+def test_redirects_an_uppercase_path_to_lowercase(tabbed: App, path: str, location: str) -> None:
+    response = tabbed.client.get(path, follow_redirects=False)
+    assert (response.status_code, response.headers["location"]) == (301, location)
+
+
+@pytest.mark.parametrize("prefix", ["", "/links"])
+def test_an_uppercase_section_ends_at_the_tab(tabbed: App, prefix: str) -> None:
+    response = tabbed.client.get(f"{prefix}/Shifra/AI-Agents")
+    assert str(response.url).endswith(f"{prefix}/shifra/ai-agents")
+    assert response.text == render_page(TABBED, profile_slug="shifra", section="ai-agents")
+
+
+@pytest.mark.parametrize(
+    ("path", "location"),
+    [
+        ("/shifra/startups", "../shifra"),
+        ("/shifra/startups/", "../../shifra"),
+        ("/links/shifra/startups", "../shifra"),
+        ("/shifra/startups?x=1", "../shifra?x=1"),
+    ],
+)
+def test_redirects_the_first_tab_to_the_profile_path(tabbed: App, path: str, location: str) -> None:
+    response = tabbed.client.get(path, follow_redirects=False)
+    assert (response.status_code, response.headers["location"]) == (301, location)
+
+
+def test_links_the_first_tab_to_the_profile_path(tabbed: App) -> None:
+    html = tabbed.client.get("/shifra").text
+    assert 'href="/links/shifra" data-section="startups"' in html
+    assert 'href="/links/shifra/ai-agents" data-section="ai-agents"' in html

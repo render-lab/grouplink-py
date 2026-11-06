@@ -52,7 +52,7 @@ A page with links in two or more sections shows a row of tabs above the links. T
 
 A click on a tab shows its links without loading the page again.
 
-Each tab has its own URL. The last path segment is the `Section` text in lowercase, with spaces and underscores changed to `-` and other characters removed. `AI Agents` becomes `ai-agents`, so `/shifra/ai-agents` opens that tab. `/shifra` opens the first tab, and a section the page does not have returns a 404 page. Two values with the same segment, such as `Startups` and `startups`, are one tab.
+Each tab has its own URL. The last path segment is the `Section` text in lowercase, with spaces and underscores changed to `-` and other characters removed. `AI Agents` becomes `ai-agents`, so `/shifra/ai-agents` opens that tab. `/shifra` opens the first tab, so `/shifra/<first tab>` redirects to `/shifra`. A path with uppercase letters redirects to the same path in lowercase. A section the page does not have returns a 404 page. Two values with the same segment, such as `Startups` and `startups`, are one tab.
 
 The web service serves every page path with and without the `/links` prefix, because render.com removes the prefix and a direct visit to the onrender.com URL does not.
 

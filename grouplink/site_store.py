@@ -15,7 +15,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date
 
-from grouplink.page import find_section, render_page, sections
+from grouplink.page import render_page
 from grouplink.snapshot import Snapshot, parse_snapshot
 
 log = logging.getLogger(__name__)
@@ -102,9 +102,10 @@ class SiteStore:
         key = (snapshot.hash, slug, section, year)
         page = self._rendered.get(key)
         if page is None:
-            if section is not None and find_section(sections(model), section) is None:
+            try:
+                html = render_page(model, year, profile_slug=slug, section=section)
+            except ValueError:
                 return None
-            html = render_page(model, year, profile_slug=slug, section=section)
             page = RenderedPage(html=html, etag=f'"{hashlib.sha256(html.encode()).hexdigest()}"')
             self._rendered[key] = page
         return page

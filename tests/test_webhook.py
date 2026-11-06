@@ -71,11 +71,6 @@ def test_delegates_an_unauthenticated_task_dispatch(client: TestClient) -> None:
     assert response.status_code == 401
 
 
-def test_refuses_a_get_on_the_notion_path(client: TestClient) -> None:
-    response = client.get("/webhooks/notion")
-    assert response.status_code == 405
-
-
 def test_build_app_names_the_variables_it_needs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("WORKFLOW_SLUG", raising=False)
     monkeypatch.delenv("REDIS_URL", raising=False)

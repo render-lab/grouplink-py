@@ -151,8 +151,13 @@ def page_order(rows: list[LinkRow], ranks: Mapping[str, int]) -> list[LinkRow]:
 
     def key(row: LinkRow) -> tuple[int, bool, float]:
         slug = tab_slug(row.section)
-        unranked = len(ranks) + (slug == MISC_SLUG)
-        return (ranks.get(slug, unranked), row.order is None, row.order or 0)
+        if slug in ranks:
+            rank = ranks[slug]
+        elif slug == MISC_SLUG:
+            rank = len(ranks) + 1
+        else:
+            rank = len(ranks)
+        return (rank, row.order is None, row.order or 0)
 
     return sorted(rows, key=key)
 
