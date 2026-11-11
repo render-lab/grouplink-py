@@ -1,15 +1,12 @@
-"""Fan-out width for the per-URL stages, and the helper that enforces it.
-
-Shared so the workflow and the preview script hit linked sites at the same rate.
-"""
+"""Fan-out width for the link health check, and the helper that enforces it."""
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
 
-#: Without a cap, a 100-row database opens 100 concurrent runs per stage and hits
-#: every linked site at once.
+#: Without a cap, a 100-row database opens 100 concurrent runs and hits every
+#: linked site at once.
 BATCH_SIZE = 10
 
 

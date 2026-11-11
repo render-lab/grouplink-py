@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'sha256-BqIQYBG8iWpCMkVJsa1le26q3ppn6Lzn6t3Vtp1zC+Y='; script-src 'sha256-dJTrLNskSiwphPx9NrEpmUIW+WyPDtc8O3DG2UVu77Y='; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'sha256-p/qW83ADDZJYanhzQw6nKRFA953GU7rRIk9Quaau+Tk='; script-src 'sha256-dJTrLNskSiwphPx9NrEpmUIW+WyPDtc8O3DG2UVu77Y='; font-src 'self'; base-uri 'none'; form-action 'none'">
 <title>Render Links</title>
 <meta name="description" content="The fastest path to production for full-stack applications and agents">
 <meta property="og:title" content="Shifra — links">
@@ -139,7 +139,10 @@ body {
   text-wrap: balance;
 }
 
-/* The tagline. */
+/*
+ * The profile's tagline, under the name in the intro block. The class follows the
+ * redesign's block__element names. _render_intro leaves it out on the default page.
+ */
 .intro__text {
   margin: 0;
   max-width: 36ch;

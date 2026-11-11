@@ -2,7 +2,7 @@
 the links, write the site to Key Value for the web service to serve, and log the outcome.
 
 Every `await ctx.run(...)` below is a separate durable run on its own instance, with
-that package's retry policy, tracked in the dashboard. The per-URL stages fan out
+that package's retry policy, tracked in the dashboard. The health check fans out
 through `map_in_batches`, so the run opens at most batch.py's BATCH_SIZE at a time.
 """
 

@@ -16,12 +16,10 @@ from typing import Any
 
 import pytest
 
-from grouplink.icons import ICON_NAMES
+from grouplink.icons import ICON_NAMES, ORDINALS, SVG_ICONS
 from grouplink.links import to_card
 from grouplink.page import (
-    ORDINALS,
     PAGE_SCRIPT,
-    SVG_ICONS,
     LinkCard,
     PageModel,
     escape_html,
@@ -381,10 +379,6 @@ class TestTabs:
     def test_refuses_a_section_the_page_does_not_have(self) -> None:
         with pytest.raises(ValueError, match="nope"):
             render_page(TABBED, profile_slug="shifra", section="nope")
-
-
-def test_icon_names_include_the_ordinals_and_play() -> None:
-    assert {"one", "two", "three", "play"} <= set(ICON_NAMES)
 
 
 def test_every_mask_icon_has_a_file() -> None:

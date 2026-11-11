@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 
-from grouplink.icons import ICON_NAMES, IconName
+from grouplink.icons import ICON_NAMES, ORDINALS, SVG_ICONS, IconName
 from grouplink.jsurl import gmail_compose_url, is_mailto_url, normalize_mailto
 from grouplink.jsurl import parse as parse_url
 
@@ -140,14 +140,6 @@ def safe_url(value: str) -> str:
         return "#"
     return parsed.href()
 
-
-# Icons drawn as a digit. They have no file and no mask rule.
-ORDINALS: dict[IconName, int] = {"one": 1, "two": 2, "three": 3}
-
-# Icons whose file is an .svg. All other icon files are .png.
-SVG_ICONS: frozenset[IconName] = frozenset(
-    {"email", "form", "render", "play", "sandbox", "workflows"}
-)
 
 # One mask rule per icon file. The rules are generated into the <style> block,
 # because the policy allows that block by hash and no style attribute at all.
@@ -281,7 +273,10 @@ body {
   text-wrap: balance;
 }
 
-/* The tagline. */
+/*
+ * The profile's tagline, under the name in the intro block. The class follows the
+ * redesign's block__element names. _render_intro leaves it out on the default page.
+ */
 .intro__text {
   margin: 0;
   max-width: 36ch;
