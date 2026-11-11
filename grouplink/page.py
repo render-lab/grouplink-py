@@ -1,9 +1,9 @@
 """The whole page. One function, one string, no framework and no build step —
 the web service serves whatever this returns for each profile.
 
-Visual foundations come from Render's brand system: semantic color tokens in
-:root with a dark override, PP Neue Montreal for prose, square corners,
-1px hairlines, purple reserved for links and focus.
+The look comes from the Website Lab redesign of the links page: color tokens in
+:root with a dark override, PP Neue Montreal for all text, 1px hairlines, and
+purple only for the focus ring.
 
 The page carries its own Content-Security-Policy, with the inline style and
 script blocks allowed by hash. Adding either one anywhere but STYLES or
@@ -36,9 +36,9 @@ class LinkCard:
     title: str
     #: Final href, exactly as the Notion row gives it.
     url: str
-    #: Scraped og:title or meta description; may be empty.
+    #: Scraped og:title or meta description; may be empty. The page does not show it.
     description: str
-    #: `<origin>/favicon.ico`, hidden on error.
+    #: `<origin>/favicon.ico`. The page does not show it.
     icon_url: str
     #: Which file under grouplink/assets/link-icons the card draws in its left column.
     icon: IconName
@@ -55,7 +55,8 @@ class SocialLink:
 @dataclass(frozen=True)
 class PageModel:
     name: str
-    #: Metadata only. The page does not show it.
+    #: The meta tags hold it on every page. The intro shows it on all pages but the
+    #: default one.
     tagline: str
     cards: list[LinkCard] = field(default_factory=list)
 
@@ -143,12 +144,6 @@ def safe_url(value: str) -> str:
     return parsed.href()
 
 
-# Per-row entrance delays. They are generated rather than set inline, because
-# the policy allows the <style> block by hash and no style attribute at all.
-ROW_STAGGER = "\n".join(
-    f".card:nth-child({i + 1}) {{ animation-delay: {i * 30}ms; }}" for i in range(20)
-)
-
 # Icons drawn as a digit. They have no file and no mask rule.
 ORDINALS: dict[IconName, int] = {"one": 1, "two": 2, "three": 3}
 
@@ -157,8 +152,8 @@ SVG_ICONS: frozenset[IconName] = frozenset(
     {"email", "form", "render", "play", "sandbox", "workflows"}
 )
 
-# One mask rule per icon file. Generated into the <style> block for the same
-# reason ROW_STAGGER is.
+# One mask rule per icon file. The rules are generated into the <style> block,
+# because the policy allows that block by hash and no style attribute at all.
 ICON_MASKS = "\n".join(
     f".card__mark--{name} {{ --mark: url('/links/assets/link-icons/{name}."
     f"{'svg' if name in SVG_ICONS else 'png'}'); }}"
@@ -168,61 +163,45 @@ ICON_MASKS = "\n".join(
 
 _STYLES_HEAD = """
 @font-face {
-  font-family: 'Roobert';
-  src: url('/links/assets/fonts/RoobertVF.woff2') format('woff2-variations');
-  font-weight: 300 500;
-  font-display: swap;
-}
-@font-face {
   font-family: 'PP Neue Montreal';
   src: url('/links/assets/fonts/PPNeueMontreal-Variable.woff2') format('woff2-variations');
   font-weight: 300 500;
   font-display: swap;
 }
-@font-face {
-  font-family: 'PP Neue Montreal Mono';
-  src: url('/links/assets/fonts/PPNeueMontrealMono-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-display: swap;
-}
 
 :root {
-  --bg: #ffffff;
-  --bg-secondary: #e3e3e3;
-  --border: #e3e3e3;
-  --text: #0d0d0d;
-  --text-secondary: #4d4d4d;
-  --text-faint: #6b6b6b;
-  --link: #8a05ff;
-  --link-hover: #48008c;
-  --link-bg: #e7dbff;
-  --accent: #8a05ff;
-  --accent-strong: #48008c;
-  --row-hover: rgba(0, 0, 0, 0.03);
+  --bg: #FFFFFF;
+  --text: #0D0D0D;
+  --text-secondary: #4D4D4D;
+  --text-faint: #6B6B6B;
+  --hairline: #E3E3E3;
+  --focus: #6C35F5;
+  --tabs-bg: color-mix(in srgb, var(--text) 5%, transparent);
+  --tab-selected-bg: var(--bg);
+  --tab-selected-ring: #00000012;
 
-  --font-brand: 'Roobert', 'Manrope', ui-sans-serif, system-ui, sans-serif;
-  --font-default: 'PP Neue Montreal', 'Manrope', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'PP Neue Montreal Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --radius-button: 2px;
+  --grid-margin: 24px;
   --ease: cubic-bezier(0.9, 0.1, 0.1, 0.9);
+
+  --font-default: 'PP Neue Montreal', 'Manrope', ui-sans-serif, system-ui, sans-serif;
 
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d0d0d;
-    --bg-secondary: #141414;
-    --border: #272727;
-    --text: #ffffff;
-    --text-secondary: #c7c7c7;
-    --text-faint: #b3b3b3;
-    --link: #d1b8ff;
-    --link-hover: #e7dbff;
-    --link-bg: #48008c;
-    --accent: #8a05ff;
-    --accent-strong: #c29eff;
-    --row-hover: rgba(255, 255, 255, 0.04);
+    --bg: #0D0D0D;
+    --text: #FFFFFF;
+    --text-secondary: #C7C7C7;
+    --text-faint: #B3B3B3;
+    --hairline: #272727;
+    --focus: #B3B1FA;
+    --tabs-bg: color-mix(in srgb, var(--text) 8%, transparent);
+    --tab-selected-bg: color-mix(in srgb, var(--text) 12%, var(--bg));
+    --tab-selected-ring: #ffffff0d;
   }
 }
 
@@ -232,86 +211,157 @@ html { -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
+  min-height: 100svh;
+  display: flex;
+  justify-content: center;
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-brand);
+  font-family: var(--font-default);
   font-weight: 400;
   font-size: 16px;
-  line-height: 24px;
+  line-height: 1.5;
   letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
 }
 
-.page {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 96px 32px 64px;
-  display: flex;
-  flex-direction: column;
-  gap: 40px;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-.masthead {
-  animation: row-fade 350ms var(--ease) both;
+.page {
+  width: 100%;
+  max-width: calc(480px + 2 * var(--grid-margin));
+  padding: 80px var(--grid-margin) 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.header { display: flex; justify-content: center; }
+
+.logo { display: block; }
+.logo:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+
+/*
+ * A mask painted with the text color, so the logo follows the color scheme.
+ * The mask is on a child, because a mask on the link would also clip its focus ring.
+ */
+.logo__mark {
+  display: block;
+  width: 112px;
+  height: 24px;
+  background-color: var(--text);
+  -webkit-mask: url('/links/assets/render-logo.svg') center / contain no-repeat;
+  mask: url('/links/assets/render-logo.svg') center / contain no-repeat;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding-top: 56px;
+}
+
+.intro {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 8px;
   text-align: center;
+}
+
+.intro__title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.125;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* The tagline. */
+.intro p {
+  margin: 0;
+  max-width: 36ch;
+  color: var(--text-secondary);
+  text-wrap: balance;
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  /* Adds to the .page gap, so the links start further below the socials. */
-  margin-bottom: 48px;
 }
 
-.name { margin: 0; }
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: calc(var(--radius-control) + 2px);
+  background: var(--tabs-bg);
+}
 
-.logo-link {
-  display: block;
+.tab {
+  flex: 1 1 0%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-control);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-align: center;
+  color: var(--text-faint);
+  text-decoration: none;
+}
+.tab:hover { color: var(--text); }
+.tab[aria-current="page"] {
+  background: var(--tab-selected-bg);
   color: var(--text);
+  box-shadow: 0 0 0 1px var(--tab-selected-ring);
 }
-.logo-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-/*
- * The logo file is solid white, so an <img> would vanish on the light
- * background. It is a mask instead, painted with the text color.
- */
-.logo {
-  display: block;
-  width: 240px;
-  height: 46px;
-  background-color: currentColor;
-  -webkit-mask: url('/links/assets/render-logo-white.png') center / contain no-repeat;
-  mask: url('/links/assets/render-logo-white.png') center / contain no-repeat;
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
+/* The display rule above would show the lists of the other tabs. */
+.links[hidden] { display: none; }
 
 .card {
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  align-items: start;
-  gap: 16px;
-  padding: 18px 12px;
-  border-bottom: 1px solid var(--border);
-  text-decoration: none;
-  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   min-height: 56px;
-  animation: row-fade 350ms var(--ease) both;
+  padding: 7px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  color: var(--text);
+  text-decoration: none;
 }
-"""
-
-_STYLES_MID = """
-
-.card:hover,
-.card:focus-visible { background: var(--row-hover); }
-.card:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.card:hover { border-color: var(--text-faint); }
+.card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /*
  * The icon files are dark artwork on transparency, so an <img> would disappear
  * against the dark background. Each one is a mask instead, painted with the
- * faint text color. The top margin sits the 20px square on the title's cap line.
+ * faint text color.
  */
 .card__mark {
+  flex: none;
   width: 20px;
   height: 20px;
-  margin-top: 3px;
   background-color: var(--text-faint);
   -webkit-mask: var(--mark) center / contain no-repeat;
   mask: var(--mark) center / contain no-repeat;
@@ -320,174 +370,125 @@ _STYLES_MID = """
 
 _STYLES_TAIL = """
 
-.card__body { display: block; }
-
-/*
- * The signature link hover: a purple underline that wipes in left to right and
- * retreats the way it came. It is a background rather than a border or a
- * pseudo-element, so it follows the title onto a second line. The rest position
- * is the right edge, which is where the wipe retreats to; the jump back is
- * invisible because the underline has no width by then.
- */
-.card__title {
-  display: inline;
-  font-size: 17.6px;
-  line-height: 26.4px;
-  background-image: linear-gradient(var(--link), var(--link));
-  background-repeat: no-repeat;
-  background-position: right bottom;
-  background-size: 0% 1px;
-  transition: background-size 200ms var(--ease);
-}
-.card:hover .card__title,
-.card:focus-visible .card__title {
-  background-position: left bottom;
-  background-size: 100% 1px;
-}
-.card__desc {
-  margin: 4px 0 0;
-  font-size: 15.4px;
-  line-height: 22px;
+/* The 2px side margins make the box as wide as the 20px icon column. */
+.card__step {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin: 0 2px;
+  border: 1.25px solid;
+  border-radius: var(--radius-button);
   color: var(--text-faint);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.card__meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.card__icon { width: 14px; height: 14px; display: block; flex: none; }
-/* Collapse a favicon that 404s, so the target line closes the gap. */
-.card__icon--broken { display: none; }
-
-.card__target {
-  font-family: var(--font-mono);
+  font-size: 11px;
   font-weight: 500;
-  font-size: 12.1px;
-  line-height: 15.4px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.card__body {
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.card__title {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
   letter-spacing: 0;
-  color: var(--text-faint);
   overflow-wrap: anywhere;
 }
 
-.tabs {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 24px;
-}
-
-/* Selected state stays neutral. Only hover and focus use the link color. */
-.tab {
-  font-family: var(--font-mono);
-  font-weight: 500;
+.card__hint {
   font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--text);
-  text-decoration: none;
-}
-.tab:hover,
-.tab:focus-visible { color: var(--link); }
-.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
-.tab[aria-current="page"] {
-  text-decoration: underline 1px var(--text);
-  text-underline-offset: 4px;
-}
-
-.footer {
-  font-family: var(--font-mono);
-  font-size: 12.1px;
-  line-height: 15.4px;
-  letter-spacing: 0.02em;
+  line-height: 16px;
   color: var(--text-faint);
-  text-align: center;
 }
 
-@keyframes row-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.card__go {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  background-color: var(--text-faint);
+  -webkit-mask: url('/links/assets/go.svg') center / contain no-repeat;
+  mask: url('/links/assets/go.svg') center / contain no-repeat;
+  transition: translate 200ms var(--ease);
+}
+.card:hover .card__go {
+  background-color: var(--text);
+  translate: 2px;
 }
 
 .socials {
   display: flex;
-  justify-content: center;
   flex-wrap: wrap;
-  gap: 20px;
-  /* Adds to the .masthead gap, so the icons clear the logo. */
-  margin-top: 28px;
+  justify-content: center;
 }
 
 .social {
-  display: block;
-  color: var(--text);
-  text-decoration: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+  color: var(--text-faint);
 }
-.social:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.social:hover { color: var(--text); }
+.social:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
 /*
  * The icon files are solid white, so an <img> would vanish on the light
- * background. Each one is a mask instead, painted with the text color.
+ * background. Each one is a mask instead, painted with the link color.
  */
 .social__icon {
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   background-color: currentColor;
   -webkit-mask: var(--icon) center / contain no-repeat;
   mask: var(--icon) center / contain no-repeat;
-  /*
-   * Every icon fills its 24x24 viewBox, but the artwork inside leaves a
-   * different amount of empty space below it. --nudge is that space, so the
-   * drawn bottoms line up across the row.
-   */
-  transform: translateY(var(--nudge, 0));
 }
 
-.social__icon--youtube { --icon: url('/links/assets/icons/youtube.svg'); --nudge: 3.5px; }
+.social__icon--youtube { --icon: url('/links/assets/icons/youtube.svg'); }
 .social__icon--linkedin { --icon: url('/links/assets/icons/linkedin.svg'); }
 .social__icon--x { --icon: url('/links/assets/icons/x.svg'); }
-.social__icon--github { --icon: url('/links/assets/icons/github.svg'); --nudge: 0.3px; }
-.social__icon--discord { --icon: url('/links/assets/icons/discord.svg'); --nudge: 2.9px; }
+.social__icon--github { --icon: url('/links/assets/icons/github.svg'); }
+.social__icon--discord { --icon: url('/links/assets/icons/discord.svg'); }
 
-@media (max-width: 767px) {
-  .page { padding: 48px 16px 40px; gap: 32px; }
-  .masthead { margin-bottom: 28px; }
-  .socials { margin-top: 20px; }
-  .logo { width: 190px; height: 36px; }
-  .tab { display: inline-flex; align-items: center; min-height: 44px; }
-  .card { grid-template-columns: 24px 1fr; gap: 12px; padding: 16px 4px; min-height: 44px; }
+.footer {
+  margin-top: auto;
+  padding-top: 48px;
+  font-size: 14px;
+  line-height: 1.429;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+@media (max-width: 1023.98px) {
+  .intro__title { font-size: 28px; }
+}
+
+@media (max-width: 767.98px) {
+  .intro__title { font-size: 24px; }
+  .page { padding-top: 32px; }
+  .main { gap: 24px; padding-top: 40px; }
+  .tab { min-height: 40px; }
+  .social { width: 44px; height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .masthead, .card { animation: none; }
-  .card__title { transition: none; }
+  .card__go { transition: none; }
 }
 """
 
-STYLES = _STYLES_HEAD + ROW_STAGGER + _STYLES_MID + ICON_MASKS + _STYLES_TAIL
+STYLES = _STYLES_HEAD + ICON_MASKS + _STYLES_TAIL
 
-# A favicon that 404s leaves a broken-image glyph, and no CSS selector matches a
-# failed image. `error` does not bubble, so the listener runs in the capture phase.
-# It adds a class instead of writing el.style, which the policy would have to allow.
-#
 # An email card links to mailto:, which opens the mail app on a phone. A desktop
 # often has no mail app, so a mouse or trackpad swaps in Gmail's compose page.
 PAGE_SCRIPT = """
-addEventListener('error', function (event) {
-  var el = event.target;
-  if (el instanceof HTMLImageElement && el.classList.contains('card__icon')) {
-    el.classList.add('card__icon--broken');
-  }
-}, true);
-
 if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
   document.querySelectorAll('a[data-gmail]').forEach(function (a) {
     a.href = a.dataset.gmail;
@@ -546,10 +547,9 @@ def _sha256_source(content: str) -> str:
 CSP = "; ".join(
     [
         "default-src 'none'",
-        # 'self' covers the logo and any other asset the site ships, so the mark still
-        # renders over plain http on localhost. Favicons come from whatever origin the
-        # link points at, over TLS only.
-        "img-src 'self' https:",
+        # 'self' covers the logo, the icons, and the other assets the site ships, so
+        # they also load over plain http on localhost.
+        "img-src 'self'",
         f"style-src {_sha256_source(STYLES)}",
         f"script-src {_sha256_source(PAGE_SCRIPT)}",
         "font-src 'self'",
@@ -558,90 +558,52 @@ CSP = "; ".join(
     ]
 )
 
-# What the row shows as its mono metadata line: host without www, plus the path.
-# The path is what tells two rows on the same site apart, so it earns its place.
-MAX_TARGET = 44
-
-
-def _display_target(url: str) -> str:
-    """Empty when the URL will not parse.
-
-    A mailto: link shows its recipients and stops. Any headers after the `?` stay in
-    the href but not on the line. A link with headers and no recipient shows `mailto`.
-    """
-    if is_mailto_url(url):
-        recipients = normalize_mailto(url).split("?", 1)[0]
-        if recipients == "mailto:":
-            return "mailto"
-        return _truncate(recipients)
-    parsed = parse_url(url)
-    if parsed is None:
-        return ""
-    path = parsed.path[:-1] if parsed.path.endswith("/") else parsed.path
-    hostname = parsed.hostname
-    if hostname.startswith("www."):
-        hostname = hostname[len("www.") :]
-    return _truncate(hostname + path)
-
-
-def _truncate(target: str) -> str:
-    if len(target) > MAX_TARGET:
-        return target[: MAX_TARGET - 1] + "\u2026"
-    return target
+NEW_TAB_TEXT = '<span class="visually-hidden">(opens in a new tab)</span>'
+MAILTO_HINT = '<span class="card__hint">Opens your email</span>'
 
 
 def _render_card(card: LinkCard) -> str:
     href = escape_html(safe_url(card.url))
-    # PAGE_SCRIPT swaps this in for the mailto: href on a desktop.
-    gmail = (
-        f' data-gmail="{escape_html(gmail_compose_url(card.url))}"'
-        if is_mailto_url(card.url)
-        else ""
-    )
-    title = escape_html(card.title)
-    desc = (
-        f'<span class="card__desc">{escape_html(card.description)}</span>'
-        if card.description
-        else ""
-    )
-    favicon = (
-        f'<img class="card__icon" src="{escape_html(safe_url(card.icon_url))}" '
-        'alt="" loading="lazy">'
-        if card.icon_url
-        else ""
-    )
-    target = _display_target(card.url)
-    meta = (
-        f'<span class="card__meta">{favicon}'
-        f'<span class="card__target">{escape_html(target)}</span></span>'
-        if target
-        else ""
-    )
-    return f"""      <a class="card" href="{href}"{gmail}>
-        <span class="card__mark card__mark--{escape_html(card.icon)}" aria-hidden="true"></span>
-        <span class="card__body">
-          <span class="card__title">{title}</span>
-          {desc}
-          {meta}
-        </span>
-      </a>"""
+    title = f'<span class="card__title">{escape_html(card.title)}</span>'
+    if is_mailto_url(card.url):
+        # PAGE_SCRIPT swaps this in for the mailto: href on a desktop.
+        attributes = f' data-gmail="{escape_html(gmail_compose_url(card.url))}"'
+        body = title + MAILTO_HINT
+        new_tab = ""
+    else:
+        attributes = ' target="_blank" rel="noreferrer"'
+        body = title
+        new_tab = f"\n            {NEW_TAB_TEXT}"
+
+    number = ORDINALS.get(card.icon)
+    if number is None:
+        mark = f'<span class="card__mark card__mark--{escape_html(card.icon)}" aria-hidden="true"></span>'
+    else:
+        mark = f'<span class="card__step" aria-hidden="true">{number}</span>'
+        body = f'<span class="visually-hidden">Step {number}: </span>' + body
+
+    return f"""          <a class="card" href="{href}"{attributes}>
+            {mark}
+            <span class="card__body">{body}</span>
+            <span class="card__go" aria-hidden="true"></span>{new_tab}
+          </a>"""
 
 
-# Where the wordmark in the masthead links.
-LOGO_HREF = "https://dashboard.render.com/"
+# Where the logo links.
+LOGO_HREF = "https://render.com/"
 
 #: Link previews need an absolute URL, so this is the render.com path of
 #: assets/preview.png.
 PREVIEW_IMAGE_URL = "https://render.com/links/assets/preview.png"
 
-# The masthead's icon row. It is the same on every page and does not come from
-# Notion. Each label needs a matching file under grouplink/assets/icons and a
+# The icon row under the links. It is the same on every page and does not come
+# from Notion. Each label needs a matching file under grouplink/assets/icons and a
 # .social__icon--<label> rule in STYLES.
 SOCIALS: list[SocialLink] = [
     SocialLink("YouTube", "https://www.youtube.com/@render-inc"),
     SocialLink("LinkedIn", "https://www.linkedin.com/company/renderco"),
     SocialLink("X", "https://x.com/render"),
-    SocialLink("GitHub", "https://github.com/render-oss/sdk"),
+    SocialLink("GitHub", "https://github.com/render-oss"),
     SocialLink("Discord", "https://render.com/discord"),
 ]
 
@@ -651,8 +613,8 @@ def _render_social(social: SocialLink) -> str:
     icon = escape_html(social.label.strip().lower())
     label = escape_html(social.label)
     return (
-        f'        <a class="social" href="{href}" aria-label="{label}">'
-        f'<span class="social__icon social__icon--{icon}"></span></a>'
+        f'        <a class="social" href="{href}" target="_blank" rel="noreferrer" '
+        f'aria-label="{label}"><span class="social__icon social__icon--{icon}"></span></a>'
     )
 
 
@@ -665,6 +627,19 @@ def _one_line(tagline: str) -> str:
     return _LINE_BREAK_RUN.sub(" ", tagline).strip()
 
 
+def _render_intro(model: PageModel, tagline: str, is_default: bool) -> str:
+    """The profile name, then the tagline. The default page and an empty tagline
+    show no tagline paragraph.
+    """
+    title = f'        <h1 class="intro__title">{escape_html(model.name)}</h1>'
+    text = (
+        f'\n        <p class="intro__text">{escape_html(tagline)}</p>'
+        if tagline and not is_default
+        else ""
+    )
+    return f'      <div class="intro">\n{title}{text}\n      </div>'
+
+
 def _render_tab(tab: Section, is_current: bool, is_first: bool, profile_slug: str) -> str:
     # The first tab's URL is the profile path, so each tab has one URL.
     path = f"/links/{profile_slug}" if is_first else f"/links/{profile_slug}/{tab.slug}"
@@ -672,7 +647,7 @@ def _render_tab(tab: Section, is_current: bool, is_first: bool, profile_slug: st
     current = ' aria-current="page"' if is_current else ""
     section = escape_html(tab.slug)
     return (
-        f'        <a class="tab" href="{href}" data-section="{section}"{current}>'
+        f'          <a class="tab" href="{href}" data-section="{section}"{current}>'
         f"{escape_html(tab.title)}</a>"
     )
 
@@ -684,10 +659,9 @@ def _render_tabs(tabs: list[Section], current: Section, profile_slug: str) -> st
     links = "\n".join(
         _render_tab(tab, tab is current, tab is tabs[0], profile_slug) for tab in tabs
     )
-    return f"""
-    <nav class="tabs" aria-label="Sections">
+    return f"""        <nav class="tabs" aria-label="Sections">
 {links}
-    </nav>
+        </nav>
 """
 
 
@@ -709,7 +683,7 @@ def _render_lists(tabs: list[Section], current: Section) -> str:
 
 def _render_list(cards: list[LinkCard], attributes: str) -> str:
     items = "\n".join(_render_card(card) for card in cards)
-    return f'      <div class="links"{attributes}>\n{items}\n      </div>'
+    return f'        <div class="links"{attributes}>\n{items}\n        </div>'
 
 
 def render_page(
@@ -718,6 +692,7 @@ def render_page(
     *,
     profile_slug: str,
     section: str | None = None,
+    is_default: bool = False,
 ) -> str:
     """`year` is the footer's copyright year, read from the clock when it is None.
     Taking it as an argument keeps the golden test stable across a new year.
@@ -725,6 +700,9 @@ def render_page(
     `section` is the slug of the tab to show, and None means the first one. The tabs link
     to `/links/<profile_slug>/<section>`. Raises ValueError for a section the page
     does not have.
+
+    `is_default` is true for the site's default profile. Its page shows no tagline
+    paragraph. The meta tags hold the tagline on every page.
     """
     footer_year = date.today().year if year is None else year
     tagline_text = _one_line(model.tagline)
@@ -732,12 +710,10 @@ def render_page(
     current = tabs[0] if section is None else find_section(tabs, section)
     if current is None:
         raise ValueError(f'the page has no section "{section}"')
+    intro = _render_intro(model, tagline_text, is_default)
     tabs_block = _render_tabs(tabs, current, profile_slug)
     lists = _render_lists(tabs, current)
     socials = "\n".join(_render_social(social) for social in SOCIALS)
-    socials_block = f"""      <nav class="socials" aria-label="Social">
-{socials}
-      </nav>"""
 
     return f"""<!doctype html>
 <html lang="en">
@@ -760,18 +736,21 @@ def render_page(
 <style>{STYLES}</style>
 </head>
 <body>
-  <main class="page">
-    <header class="masthead">
-      <h1 class="name"><a class="logo-link" href="{LOGO_HREF}" aria-label="{escape_html(model.name)}"><span class="logo"></span></a></h1>
-{socials_block}
+  <div class="page">
+    <header class="header">
+      <a class="logo" href="{LOGO_HREF}" aria-label="Render home"><span class="logo__mark"></span></a>
     </header>
-{tabs_block}
-    <section>
-{lists}
-    </section>
-
-    <footer class="footer">&copy; {footer_year} render.com</footer>
-  </main>
+    <main class="main">
+{intro}
+      <div class="sections">
+{tabs_block}{lists}
+      </div>
+      <nav class="socials" aria-label="Render on social media">
+{socials}
+      </nav>
+    </main>
+    <footer class="footer">&copy; {footer_year} Render Inc.</footer>
+  </div>
 <script>{PAGE_SCRIPT}</script>
 </body>
 </html>

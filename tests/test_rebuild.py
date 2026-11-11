@@ -275,7 +275,13 @@ class Harness:
 
     def html(self, slug: str = "shifra") -> str:
         """One profile's page, rendered from the snapshot the last run wrote."""
-        return render_page(self.snapshot().pages[slug], 2026, profile_slug=slug)
+        snapshot = self.snapshot()
+        return render_page(
+            snapshot.pages[slug],
+            2026,
+            profile_slug=slug,
+            is_default=slug == snapshot.default_slug,
+        )
 
 
 @pytest.fixture
@@ -449,7 +455,7 @@ class TestRebuild:
         html = h.html("shifra")
         gmail = "https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=shifra@render.com"
         assert f'href="{address}" data-gmail="{gmail}"' in html
-        assert f'<span class="card__target">{address}</span>' in html
+        assert '<span class="card__hint">Opens your email</span>' in html
 
     async def test_refuses_to_run_when_the_default_slug_matches_nobody(self, env: Any) -> None:
         env(SITE_DEFAULT_SLUG="nobody")
@@ -471,15 +477,16 @@ class TestRebuild:
 
         html = h.html("alex")
         assert 'href="/links/assets/render-logomark-black.svg"' in html
-        assert "url('/links/assets/render-logo-white.png')" in html
+        assert "url('/links/assets/render-logo.svg')" in html
         assert "url('/links/assets/icons/github.svg')" in html
-        assert "url('/links/assets/fonts/RoobertVF.woff2')" in html
+        assert "url('/links/assets/fonts/PPNeueMontreal-Variable.woff2')" in html
         assert not [m for m in ('"assets/', "'assets/", "(assets/", "'/assets/") if m in html]
 
-    async def test_carries_the_scraped_description_onto_the_card(self, env: Any) -> None:
+    async def test_carries_the_scraped_description_into_the_snapshot(self, env: Any) -> None:
         h = harness()
         await rebuild.func(h.ctx, {})
-        assert "desc for https://discord.com/invite/x" in h.html()
+        descriptions = [card.description for card in h.snapshot().pages["shifra"].cards]
+        assert "desc for https://discord.com/invite/x" in descriptions
 
     async def test_links_to_the_notion_url_untouched(self, env: Any) -> None:
         h = harness()
@@ -497,7 +504,8 @@ class TestRebuild:
 
         assert result["cacheHits"] == 1
         assert len(h.scraped) == 2
-        assert "cached blurb" in h.html()
+        descriptions = [card.description for card in h.snapshot().pages["shifra"].cards]
+        assert "cached blurb" in descriptions
 
     async def test_caches_every_fresh_scrape_with_a_ttl(self, env: Any) -> None:
         h = harness()

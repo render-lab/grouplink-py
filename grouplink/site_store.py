@@ -103,7 +103,13 @@ class SiteStore:
         page = self._rendered.get(key)
         if page is None:
             try:
-                html = render_page(model, year, profile_slug=slug, section=section)
+                html = render_page(
+                    model,
+                    year,
+                    profile_slug=slug,
+                    section=section,
+                    is_default=slug == snapshot.default_slug,
+                )
             except ValueError:
                 return None
             page = RenderedPage(html=html, etag=f'"{hashlib.sha256(html.encode()).hexdigest()}"')

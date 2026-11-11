@@ -89,7 +89,7 @@ def test_serves_the_default_profile_at_the_root(app: App) -> None:
     response = app.client.get("/")
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/html; charset=utf-8"
-    assert response.text == render_page(SHIFRA, profile_slug="shifra")
+    assert response.text == render_page(SHIFRA, profile_slug="shifra", is_default=True)
 
 
 def test_serves_a_profile_at_its_slug_with_or_without_a_trailing_slash(app: App) -> None:
@@ -112,7 +112,7 @@ def test_answers_a_reserved_slug_with_a_404_page(app: App) -> None:
 def test_reads_key_value_on_each_request(app: App) -> None:
     app.client.get("/")
     app.kv.value = snapshot(shifra=ALEX)
-    assert app.client.get("/").text == render_page(ALEX, profile_slug="alex")
+    assert app.client.get("/").text == render_page(ALEX, profile_slug="shifra", is_default=True)
     assert app.kv.reads == 2
 
 
@@ -121,7 +121,7 @@ def test_serves_the_last_good_copy_when_key_value_fails(app: App) -> None:
     app.kv.error = ConnectionError("Key Value is down")
     response = app.client.get("/")
     assert response.status_code == 200
-    assert response.text == render_page(SHIFRA, profile_slug="shifra")
+    assert response.text == render_page(SHIFRA, profile_slug="shifra", is_default=True)
 
 
 def test_serves_the_last_good_copy_when_the_value_will_not_parse(app: App) -> None:
@@ -129,7 +129,7 @@ def test_serves_the_last_good_copy_when_the_value_will_not_parse(app: App) -> No
     doc = json.loads(snapshot())
     doc["schema"] = 2
     app.kv.value = json.dumps(doc)
-    assert app.client.get("/").text == render_page(SHIFRA, profile_slug="shifra")
+    assert app.client.get("/").text == render_page(SHIFRA, profile_slug="shifra", is_default=True)
 
 
 def test_answers_503_when_key_value_fails_before_any_good_copy() -> None:
@@ -196,7 +196,7 @@ def test_serves_the_assets_with_their_content_types(app: App, prefix: str) -> No
     assert svg.status_code == 200
     assert svg.headers["content-type"].startswith("image/svg+xml")
 
-    font = app.client.get(f"{prefix}/fonts/RoobertVF.woff2")
+    font = app.client.get(f"{prefix}/fonts/PPNeueMontreal-Variable.woff2")
     assert font.status_code == 200
     assert font.headers["cache-control"] == "public, max-age=31536000, immutable"
 
@@ -307,14 +307,14 @@ def tabbed() -> App:
 
 @pytest.mark.parametrize("prefix", ["", "/links"])
 def test_serves_the_first_tab_at_the_profile_path(tabbed: App, prefix: str) -> None:
-    first = render_page(TABBED, profile_slug="shifra")
+    first = render_page(TABBED, profile_slug="shifra", is_default=True)
     assert tabbed.client.get(f"{prefix}/shifra").text == first
     assert tabbed.client.get(f"{prefix}/shifra/").text == first
 
 
 @pytest.mark.parametrize("prefix", ["", "/links"])
 def test_serves_a_tab_at_its_section_path(tabbed: App, prefix: str) -> None:
-    agents = render_page(TABBED, profile_slug="shifra", section="ai-agents")
+    agents = render_page(TABBED, profile_slug="shifra", section="ai-agents", is_default=True)
     assert tabbed.client.get(f"{prefix}/shifra/ai-agents").text == agents
     assert tabbed.client.get(f"{prefix}/shifra/ai-agents/").text == agents
 
@@ -329,7 +329,9 @@ def test_answers_an_unknown_section_with_a_404_page(tabbed: App, prefix: str) ->
 
 @pytest.mark.parametrize("path", ["/", "/links", "/links/"])
 def test_serves_the_first_tab_of_the_default_profile(tabbed: App, path: str) -> None:
-    assert tabbed.client.get(path).text == render_page(TABBED, profile_slug="shifra")
+    assert tabbed.client.get(path).text == render_page(
+        TABBED, profile_slug="shifra", is_default=True
+    )
 
 
 @pytest.mark.parametrize(
@@ -352,7 +354,9 @@ def test_redirects_an_uppercase_path_to_lowercase(tabbed: App, path: str, locati
 def test_an_uppercase_section_ends_at_the_tab(tabbed: App, prefix: str) -> None:
     response = tabbed.client.get(f"{prefix}/Shifra/AI-Agents")
     assert str(response.url).endswith(f"{prefix}/shifra/ai-agents")
-    assert response.text == render_page(TABBED, profile_slug="shifra", section="ai-agents")
+    assert response.text == render_page(
+        TABBED, profile_slug="shifra", section="ai-agents", is_default=True
+    )
 
 
 @pytest.mark.parametrize(

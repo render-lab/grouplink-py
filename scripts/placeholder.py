@@ -73,6 +73,24 @@ PROFILES = [
         name="Graham",
         slug="graham",
         links=[
+            SeedLink(
+                title="Create your Render account",
+                url="https://dashboard.render.com/register",
+                description="Sign up for Render with GitHub, GitLab, Google, or email.",
+                icon="one",
+            ),
+            SeedLink(
+                title="Deploy your first service",
+                url="https://render.com/docs/your-first-deploy",
+                description="Deploy a web service, static site, or worker from a Git repo.",
+                icon="two",
+            ),
+            SeedLink(
+                title="Add a custom domain",
+                url="https://render.com/docs/custom-domains",
+                description="Point your own domain at a Render service, with free TLS.",
+                icon="three",
+            ),
             *SHARED,
             SeedLink(
                 title="Render docs",

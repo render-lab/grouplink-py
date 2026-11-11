@@ -12,6 +12,7 @@ import hashlib
 import re
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -29,7 +30,7 @@ from grouplink.page import (
     section_slug,
     sections,
 )
-from scripts.placeholder import PROFILES, TAGLINE, SeedProfile
+from scripts.placeholder import DEFAULT_SLUG, PROFILES, TAGLINE, SeedProfile
 
 GOLDEN = Path(__file__).parent / "golden"
 ASSETS = Path(__file__).parent.parent / "grouplink" / "assets"
@@ -57,6 +58,19 @@ MODEL = PageModel(
     ],
 )
 
+TWO_SECTION_MODEL = replace(
+    MODEL,
+    cards=[
+        replace(MODEL.cards[0], section="Startups"),
+        replace(MODEL.cards[1], section="Agents"),
+    ],
+)
+
+
+def model_with(**card_fields: Any) -> PageModel:
+    """MODEL with one card: its second card, with `card_fields` changed."""
+    return replace(MODEL, cards=[replace(MODEL.cards[1], **card_fields)])
+
 
 @pytest.mark.parametrize(
     ("profile", "fixture"),
@@ -71,7 +85,8 @@ def test_reproduces_the_committed_page_byte_for_byte(profile: SeedProfile, fixtu
             cards=[to_card(link, link.description) for link in profile.links],
         ),
         year=GOLDEN_YEAR,
-        profile_slug="shifra",
+        profile_slug=profile.slug,
+        is_default=profile.slug == DEFAULT_SLUG,
     )
     assert html == (GOLDEN / fixture).read_text()
 
@@ -83,12 +98,7 @@ class TestRenderPage:
         assert 'href="https://example.com/a"' in html
         assert 'href="https://x.com/render"' in html
 
-    def test_omits_the_description_paragraph_when_there_is_no_description(self) -> None:
-        assert (
-            len(re.findall(r'class="card__desc"', render_page(MODEL, profile_slug="shifra"))) == 1
-        )
-
-    def test_escapes_titles_and_descriptions(self) -> None:
+    def test_escapes_titles(self) -> None:
         html = render_page(
             replace(
                 MODEL,
@@ -106,7 +116,6 @@ class TestRenderPage:
         )
         assert "<script>alert(1)</script>" not in html
         assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
-        assert "a &quot;b&quot; &amp; c" in html
 
     def test_drops_a_javascript_href(self) -> None:
         card = LinkCard("Bad", "javascript:alert(1)", "", icon_url="", icon="arrow")
@@ -114,22 +123,18 @@ class TestRenderPage:
         assert "javascript:" not in html
         assert 'href="#"' in html
 
-    def test_renders_a_mailto_card_with_the_address_as_its_target(self) -> None:
+    def test_renders_a_mailto_card_with_a_gmail_link(self) -> None:
         card = LinkCard("Email", "mailto:shifra@render.com", "", icon_url="", icon="email")
         html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         gmail = "https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=shifra@render.com"
-        assert f'href="mailto:shifra@render.com" data-gmail="{gmail}"' in html
-        assert 'target="_blank"' not in html
-        assert '<span class="card__target">mailto:shifra@render.com</span>' in html
-        assert 'class="card__icon"' not in html
+        assert f'href="mailto:shifra@render.com" data-gmail="{gmail}">' in html
 
-    def test_keeps_mailto_headers_in_the_href_but_off_the_target_line(self) -> None:
+    def test_keeps_mailto_headers_in_the_href(self) -> None:
         url = "mailto:shifra@render.com?subject=Hi&body=Hello"
         card = LinkCard("Email", url, "", icon_url="", icon="email")
         html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         gmail = "https://mail.google.com/mail/?view=cm&fs=1&to=shifra@render.com&su=Hi&body=Hello"
         assert f'href="{escape_html(url)}" data-gmail="{escape_html(gmail)}"' in html
-        assert '<span class="card__target">mailto:shifra@render.com</span>' in html
 
     def test_gives_only_email_cards_a_gmail_link(self) -> None:
         card = LinkCard("Site", "https://render.com/", "", icon_url="", icon="arrow")
@@ -142,23 +147,66 @@ class TestRenderPage:
         assert "matchMedia('(hover: hover) and (pointer: fine)')" in PAGE_SCRIPT
         assert "a[data-gmail]" in PAGE_SCRIPT
 
-    def test_labels_a_mailto_link_with_no_recipient(self) -> None:
-        card = LinkCard("Email", "mailto:?subject=Hi", "", icon_url="", icon="email")
-        html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
-        assert '<span class="card__target">mailto</span>' in html
-
-    def test_keeps_the_tagline_out_of_the_page_and_on_one_line(self) -> None:
+    def test_puts_the_tagline_on_one_line(self) -> None:
         html = render_page(replace(MODEL, tagline="First half\nsecond half"), profile_slug="shifra")
-        assert 'class="tagline"' not in html
         assert '<meta name="description" content="First half second half">' in html
+        assert '<p class="intro__text">First half second half</p>' in html
 
     def test_draws_the_card_icon_the_model_names(self) -> None:
         html = render_page(MODEL, profile_slug="shifra")
         assert 'class="card__mark card__mark--workflows"' in html
         assert 'class="card__mark card__mark--arrow"' in html
 
-    def test_reads_the_footer_year_from_its_argument(self) -> None:
-        assert "&copy; 1999 render.com" in render_page(MODEL, year=1999, profile_slug="shifra")
+    def test_draws_a_numbered_box_for_an_ordinal_icon(self) -> None:
+        html = render_page(model_with(icon="two"), profile_slug="x")
+        assert '<span class="card__step" aria-hidden="true">2</span>' in html
+        assert '<span class="visually-hidden">Step 2: </span>' in html
+        assert "card__mark--two" not in html
+
+    def test_opens_web_links_in_a_new_tab(self) -> None:
+        html = render_page(MODEL, profile_slug="x")
+        assert 'target="_blank" rel="noreferrer"' in html
+        assert "(opens in a new tab)" in html
+
+    def test_hints_that_any_mailto_card_opens_email(self) -> None:
+        html = render_page(model_with(url="mailto:a@b.com?subject=Hi"), profile_slug="x")
+        assert '<span class="card__hint">Opens your email</span>' in html
+        assert "(opens in a new tab)" not in html
+
+    def test_shows_the_profile_name_and_tagline_at_the_top(self) -> None:
+        html = render_page(MODEL, profile_slug="x")
+        assert '<h1 class="intro__title">Render</h1>' in html
+        assert "Cloud application hosting for developers.</p>" in html
+        assert html.index("<h1") < html.index('class="links"')
+
+    def test_omits_the_tagline_paragraph_when_the_tagline_is_empty(self) -> None:
+        html = render_page(replace(MODEL, tagline=""), profile_slug="x")
+        assert "intro__text" not in html
+
+    def test_shows_the_name_but_not_the_tagline_on_the_default_page(self) -> None:
+        html = render_page(MODEL, profile_slug="x", is_default=True)
+        head, body = html.split("</head>")
+        assert '<h1 class="intro__title">Render</h1>' in body
+        assert "Cloud application hosting" not in body
+        assert (
+            '<meta name="description" content="Cloud application hosting for developers.">' in head
+        )
+
+    def test_puts_the_socials_after_the_links_and_before_the_footer(self) -> None:
+        html = render_page(TWO_SECTION_MODEL, profile_slug="x")
+        assert (
+            html.index('class="tabs"')
+            < html.index('class="links"')
+            < html.index('class="socials"')
+            < html.index('class="footer"')
+        )
+
+    def test_writes_the_footer_copy(self) -> None:
+        assert "&copy; 2026 Render Inc.</footer>" in render_page(MODEL, 2026, profile_slug="x")
+
+    def test_shows_no_description_favicon_or_target(self) -> None:
+        html = render_page(MODEL, profile_slug="x")
+        assert "card__desc" not in html and "card__icon" not in html and "card__target" not in html
 
     def test_always_renders_the_same_icon_row(self) -> None:
         assert 'class="social__icon social__icon--github"' in render_page(
@@ -196,8 +244,8 @@ class TestContentSecurityPolicy:
         assert f"style-src '{self._sha256(self._inline_block(html, 'style'))}'" in csp
         assert f"script-src '{self._sha256(self._inline_block(html, 'script'))}'" in csp
 
-    def test_allows_the_sites_own_images(self) -> None:
-        assert "img-src 'self' https:" in self._policy(render_page(MODEL, profile_slug="shifra"))
+    def test_allows_only_the_sites_own_images(self) -> None:
+        assert "img-src 'self';" in self._policy(render_page(MODEL, profile_slug="shifra"))
 
     def test_emits_no_inline_event_handlers(self) -> None:
         assert not re.search(r"\son[a-z]+=", render_page(MODEL, profile_slug="shifra"))
@@ -318,16 +366,16 @@ class TestTabs:
         assert html.index('href="https://example.com/loose-2"') < hidden_list
         assert html.index('href="https://example.com/agent-1"') > hidden_list
 
+    def test_hides_the_lists_of_the_other_tabs(self) -> None:
+        assert ".links[hidden] { display: none; }" in render_page(TABBED, profile_slug="shifra")
+
     def test_renders_one_plain_list_with_no_tabs(self) -> None:
         html = render_page(MODEL, profile_slug="shifra")
         assert '<div class="links">' in html
         assert '<div class="links" data-section' not in html
 
-    def test_puts_the_tabs_between_the_socials_and_the_links(self) -> None:
+    def test_labels_the_tab_row(self) -> None:
         html = render_page(TABBED, profile_slug="shifra")
-        assert (
-            html.index('class="socials"') < html.index('class="tabs"') < html.index('class="links"')
-        )
         assert '<nav class="tabs" aria-label="Sections">' in html
 
     def test_escapes_tab_titles(self) -> None:
