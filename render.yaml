@@ -1,9 +1,8 @@
 # Blueprint for everything except the Workflow: the web service that serves the
 # page and receives Notion's webhook, and the Key Value instance that holds the
-# published site and caches scraped metadata. Blueprints don't support Workflows
-# yet, so create the Workflow service in the Dashboard and set its env vars there,
-# including REDIS_URL, copied from this Key Value instance's internal connection
-# string.
+# published site. Blueprints don't support Workflows yet, so create the Workflow
+# service in the Dashboard and set its env vars there, including REDIS_URL, copied
+# from this Key Value instance's internal connection string.
 #
 # Order: apply this Blueprint, create the Workflow, then set WORKFLOW_SLUG.
 projects:
@@ -55,8 +54,8 @@ projects:
             name: grouplink-cache
             plan: starter
             region: oregon
-            # volatile-lru evicts only keys with a TTL. The scraped metadata has one;
-            # grouplink:site, the published site, does not, so it is never evicted.
+            # volatile-lru evicts only keys with a TTL. grouplink:site, the published
+            # site, has none, so it is never evicted.
             maxmemoryPolicy: volatile-lru
             # Private network only. The Workflow and the web service reach it over
             # the internal URL.

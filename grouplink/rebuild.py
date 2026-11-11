@@ -1,5 +1,5 @@
-"""grouplink.rebuild — read the profiles and their links from Notion, enrich them,
-write the site to Key Value for the web service to serve, and log the outcome.
+"""grouplink.rebuild — read the profiles and their links from Notion, health-check
+the links, write the site to Key Value for the web service to serve, and log the outcome.
 
 Every `await ctx.run(...)` below is a separate durable run on its own instance, with
 that package's retry policy, tracked in the dashboard. The per-URL stages fan out
@@ -8,7 +8,6 @@ through `map_in_batches`, so the run opens at most batch.py's BATCH_SIZE at a ti
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -21,7 +20,6 @@ from render_lab_tasks_http.types import RequestResult
 from render_lab_tasks_notion.types import PageDTO
 from render_lab_tasks_render_kv.get import get as kv_get
 from render_lab_tasks_render_kv.set import set as kv_set
-from render_lab_tasks_scrape.extract_metadata import extract_metadata
 
 from grouplink.app import app
 from grouplink.batch import map_in_batches
@@ -31,9 +29,7 @@ from grouplink.links import (
     ProfilePage,
     ProfileRow,
     SkippedRow,
-    card_description,
     fetchable_urls,
-    meta_cache_key,
     skipped_rows,
     to_card,
     unique_urls,
@@ -46,14 +42,6 @@ from grouplink.snapshot import SITE_KEY, build_snapshot, parse_snapshot
 
 log = logging.getLogger(__name__)
 
-
-class CachedMeta(TypedDict):
-    """The subset of scrape.extractMetadata we cache and use."""
-
-    description: str
-
-
-EMPTY_META: CachedMeta = {"description": ""}
 
 # Statuses that mean the URL resolved but refused an unadorned GET. X answers 403 and
 # LinkedIn answers 999 for a request with no browser fingerprint, so neither is dead.
@@ -71,7 +59,6 @@ class RebuildResult(TypedDict):
     pageCount: int
     #: Distinct card URLs across every page.
     linkCount: int
-    cacheHits: int
     #: Link rows read from Notion that render on no page, and why.
     skipped: list[SkippedRowDTO]
     deadLinks: list[str]
@@ -93,52 +80,13 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
 
     skipped = _report_notion_problems(site.link_pages, site.profiles)
 
-    # A link on three pages is one URL to look up, scrape, and health-check. A
-    # mailto: card renders from its Notion row alone, so it is a card URL but not a
-    # web URL and skips stages 2 through 5.
+    # A link on three pages is one URL to health-check. A mailto: card renders from
+    # its Notion row alone, so it is a card URL but not a web URL and skips stage 2.
     rows = [row for page in pages for row in page.rows]
     card_urls = unique_urls(rows)
     web_urls = fetchable_urls(card_urls)
 
-    # 2) Batched fan-out: look for each card's metadata in Key Value first.
-    meta_by_url: dict[str, CachedMeta] = {}
-    cached = await map_in_batches(
-        web_urls, lambda url, _i: ctx.run(kv_get, {"key": meta_cache_key(url)})
-    )
-    for url, entry in zip(web_urls, cached, strict=True):
-        hit = _read_cached(entry.get("value"))
-        if hit is not None:
-            meta_by_url[url] = hit
-
-    # 3) Batched fan-out: scrape only the misses. A failed scrape gives the card no
-    #    description, so one site that blocks the scraper does not stop the run.
-    miss_urls = [url for url in web_urls if url not in meta_by_url]
-    scraped = await map_in_batches(miss_urls, lambda url, _i: _scrape(ctx, url))
-    scraped_meta: dict[str, CachedMeta] = {
-        url: {"description": card_description(result)}
-        for url, result in zip(miss_urls, scraped, strict=True)
-        if result is not None
-    }
-    meta_by_url.update(scraped_meta)
-
-    # 4) Batched fan-out: write the fresh metadata back with a TTL. A failed scrape
-    #    is not cached, so the next run tries it again.
-    scraped_urls = list(scraped_meta)
-    await map_in_batches(
-        scraped_urls,
-        lambda url, _i: ctx.run(
-            kv_set,
-            {
-                "key": meta_cache_key(url),
-                # Separators match the JSON the TypeScript implementation writes, so
-                # an entry looks the same in Key Value whichever one wrote it.
-                "value": json.dumps(scraped_meta[url], separators=(",", ":")),
-                "ttlSeconds": cfg.cache_ttl_seconds,
-            },
-        ),
-    )
-
-    # 5) Batched fan-out: health-check every link. tasks-http has no HEAD method, so
+    # 2) Batched fan-out: health-check every link. tasks-http has no HEAD method, so
     #    this is a GET whose body we discard.
     checks = await map_in_batches(web_urls, lambda url, _i: _check(ctx, url))
     dead_links = [
@@ -147,16 +95,15 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
         if _unreachable(check)
     ]
 
-    # 6) Build the snapshot the web service serves: every profile's page model and
+    # 3) Build the snapshot the web service serves: every profile's page model and
     #    the slug the root page shows.
-    models = {page.profile.slug: _to_model(page, meta_by_url) for page in pages}
+    models = {page.profile.slug: _to_model(page) for page in pages}
     snapshot = build_snapshot(models, cfg.default_slug, datetime.now(UTC))
     snapshot_hash = parse_snapshot(snapshot).hash
 
     result: RebuildResult = {
         "pageCount": len(pages),
         "linkCount": len(card_urls),
-        "cacheHits": len(web_urls) - len(miss_urls),
         "skipped": [_to_skipped_dto(row) for row in skipped],
         "deadLinks": dead_links,
         "hash": snapshot_hash,
@@ -169,7 +116,7 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
     if cfg.dry_run:
         return result
 
-    # 7) Chained runs: read the published snapshot, and write the new one only when
+    # 4) Chained runs: read the published snapshot, and write the new one only when
     #    its hash differs. One SET, so a reader never sees half of a rebuild. No TTL,
     #    so Key Value never evicts it. The page is live when the SET returns.
     current = await ctx.run(kv_get, {"key": SITE_KEY})
@@ -186,16 +133,6 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
         dead_links,
     )
     return result
-
-
-async def _scrape(ctx: TaskContext, url: str) -> Mapping[str, Any] | None:
-    """The page's metadata, or None when the scrape fails after its retries."""
-    try:
-        result = await ctx.run(extract_metadata, {"url": url})
-    except TaskRunError as error:
-        log.warning("scrape failed for %s: %s", url, error)
-        return None
-    return result or {}
 
 
 async def _check(ctx: TaskContext, url: str) -> RequestResult | None:
@@ -239,30 +176,15 @@ def _snapshot_hash(value: str | None) -> str | None:
         return None
 
 
-def _read_cached(value: str | None) -> CachedMeta | None:
-    if not value:
-        return None
-    try:
-        parsed = json.loads(value)
-    except ValueError:
-        # A malformed cache entry is a miss, not a failure.
-        return None
-    if isinstance(parsed, dict) and "description" in parsed:
-        return {"description": str(parsed["description"] or "")}
-    return None
-
-
 def _to_skipped_dto(row: SkippedRow) -> SkippedRowDTO:
     return {"title": row.title, "url": row.url, "reason": row.reason}
 
 
-def _to_model(page: ProfilePage, meta_by_url: dict[str, CachedMeta]) -> PageModel:
+def _to_model(page: ProfilePage) -> PageModel:
     return PageModel(
         name=page.profile.name,
         tagline=page.profile.tagline,
-        cards=[
-            to_card(row, meta_by_url.get(row.url, EMPTY_META)["description"]) for row in page.rows
-        ],
+        cards=[to_card(row) for row in page.rows],
     )
 
 

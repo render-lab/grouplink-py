@@ -1,5 +1,4 @@
-"""Write a seed snapshot to a local Redis, from seed links with the descriptions the
-scrape finds in production written out by hand.
+"""Write a seed snapshot to a local Redis, from seed links written out by hand.
 
 It lets you run the web service locally without Notion. The golden page tests
 render the same seed links. Run with `uv run python -m scripts.placeholder`.
@@ -19,7 +18,6 @@ from scripts.local_site import write_snapshot
 class SeedLink:
     title: str
     url: str
-    description: str
     icon: IconName
     section: str = ""
 
@@ -35,19 +33,11 @@ SHARED = [
     SeedLink(
         title="Funded founder? Apply to the Render startup program",
         url="https://render.com/startups",
-        description=(
-            "Build and scale your startup's apps and agents on infrastructure developers "
-            "love, and get up to $100,000 in credits through Render for Startups."
-        ),
         icon="form",
     ),
     SeedLink(
         title="Render website",
         url="https://render.com/",
-        description=(
-            "Deploy and scale any app or agent from your first user to your billionth. "
-            "Build faster on intuitive cloud infrastructure for the modern web."
-        ),
         icon="render",
     ),
 ]
@@ -61,10 +51,6 @@ PROFILES = [
             SeedLink(
                 title="Get started with Render Workflows",
                 url="https://render.com/tutorials/render-workflows",
-                description=(
-                    "Scaffold a Render Workflow, write your first task, run it locally, "
-                    "and deploy it — in Python or TypeScript."
-                ),
                 icon="workflows",
             ),
         ],
@@ -76,29 +62,22 @@ PROFILES = [
             SeedLink(
                 title="Create your Render account",
                 url="https://dashboard.render.com/register",
-                description="Sign up for Render with GitHub, GitLab, Google, or email.",
                 icon="one",
             ),
             SeedLink(
                 title="Deploy your first service",
                 url="https://render.com/docs/your-first-deploy",
-                description="Deploy a web service, static site, or worker from a Git repo.",
                 icon="two",
             ),
             SeedLink(
                 title="Add a custom domain",
                 url="https://render.com/docs/custom-domains",
-                description="Point your own domain at a Render service, with free TLS.",
                 icon="three",
             ),
             *SHARED,
             SeedLink(
                 title="Render docs",
                 url="https://render.com/docs",
-                description=(
-                    "Guides and reference for deploying web services, static sites, "
-                    "workers, cron jobs, Postgres, and Key Value on Render."
-                ),
                 icon="info",
             ),
         ],
@@ -115,7 +94,7 @@ def main() -> None:
             profile.slug: PageModel(
                 name=profile.name,
                 tagline=TAGLINE,
-                cards=[to_card(link, link.description) for link in profile.links],
+                cards=[to_card(link) for link in profile.links],
             )
             for profile in PROFILES
         },

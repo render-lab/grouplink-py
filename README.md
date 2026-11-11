@@ -1,6 +1,6 @@
 # grouplink
 
-Render's links page. A Render Workflow reads the links from Notion, scrapes each link's description, and writes the result to Key Value. A web service reads the result from Key Value and serves one HTML page per profile. Each card on the page shows the link's title. The page does not show the scraped description.
+Render's links page. A Render Workflow reads the links from Notion, health-checks each link, and writes the result to Key Value. A web service reads the result from Key Value and serves one HTML page per profile.
 
 ## Project structure
 
@@ -16,7 +16,7 @@ Render's links page. A Render Workflow reads the links from Notion, scrapes each
 
 1. Someone edits a row in Notion.
 2. Notion sends a webhook to the web service. The web service waits for 60 seconds with no new edits, then starts one `grouplink.rebuild` run.
-3. The run reads both Notion databases, scrapes and health-checks each link, and writes a snapshot to Key Value under the `grouplink:site` key.
+3. The run reads both Notion databases, health-checks each link, and writes a snapshot to Key Value under the `grouplink:site` key.
 4. The web service renders each page from the snapshot on request.
 
 There is no schedule. The run logs the live URL and any dead links. If a run fails, the error shows in the run's logs in the Render Dashboard.
@@ -145,7 +145,6 @@ The Workflow reads the following variables:
 | `SITE_URL`                    | —        | Public URL, shown in the run log            |
 | `SITE_DEFAULT_SLUG`           | —        | Slug of the profile served at `/`           |
 | `DRY_RUN`                     | `false`  | Set to `true` to skip the snapshot write    |
-| `METADATA_TTL_SECONDS`        | `604800` | How long a scraped description is cached    |
 | `LINKS_LIMIT`                 | `100`    | Notion rows to read per run                 |
 
 The web service reads the following variables:

@@ -341,7 +341,6 @@ dependencies = [
     { name = "render-lab-tasks-http" },
     { name = "render-lab-tasks-notion" },
     { name = "render-lab-tasks-render-kv" },
-    { name = "render-lab-tasks-scrape" },
     { name = "render-lab-triggers" },
     { name = "starlette" },
     { name = "uvicorn" },
@@ -367,7 +366,6 @@ requires-dist = [
     { name = "render-lab-tasks-http", specifier = "==0.1.0" },
     { name = "render-lab-tasks-notion", specifier = "==0.1.0" },
     { name = "render-lab-tasks-render-kv", specifier = "==0.1.0" },
-    { name = "render-lab-tasks-scrape", specifier = "==0.1.0" },
     { name = "render-lab-triggers", specifier = "==0.1.0" },
     { name = "starlette", specifier = "==1.7.0" },
     { name = "uvicorn", specifier = "==0.54.0" },
@@ -1049,20 +1047,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/95/20/0ff9ef72178c7467cc81db7f3ba892111e25f8f1e19b36022a48357b7807/render_lab_tasks_render_kv-0.1.0.tar.gz", hash = "sha256:fca56cb80a2e0e28845733cad8955e19cf7fe00dfc3f4ef6a248ee36ddf0a0ba", size = 6149, upload-time = "2026-09-09T10:45:31.117Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/75/15/c66778e181b72207992861e9d99666f9ca384270adb86496d9e6f52359cf/render_lab_tasks_render_kv-0.1.0-py3-none-any.whl", hash = "sha256:3af500015ae7cb241c4ebe78ab70f62594ee15fc90e2b82b3df5a7ffd419d941", size = 10223, upload-time = "2026-09-09T10:45:29.831Z" },
-]
-
-[[package]]
-name = "render-lab-tasks-scrape"
-version = "0.1.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "httpx" },
-    { name = "render" },
-    { name = "render-lab-tasks-core" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/d7/cc/184226cf796a1a397455e637f05da65cb36551e3f4c3bab661376f00e10a/render_lab_tasks_scrape-0.1.0.tar.gz", hash = "sha256:2b01a02ee0c73c89a0587153bef9dc3a29b8010cb44805b4686ad4f52a495f34", size = 6886, upload-time = "2026-09-09T10:51:36.648Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/bd/3854ad1f404f60cabd419c974c53f637bdef7c5b18d9c27f8ebc3ee1f00c/render_lab_tasks_scrape-0.1.0-py3-none-any.whl", hash = "sha256:4c022dc51bdd0c2583480e28a113e5effc592867ee73ef7e048b72e863dd6d8f", size = 11606, upload-time = "2026-09-09T10:51:35.498Z" },
 ]
 
 [[package]]

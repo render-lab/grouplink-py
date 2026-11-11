@@ -50,11 +50,9 @@ MODEL = PageModel(
         LinkCard(
             "First",
             "https://example.com/a",
-            "A",
-            icon_url="https://example.com/favicon.ico",
             icon="arrow",
         ),
-        LinkCard("Second", "https://example.com/b", "", icon_url="", icon="workflows"),
+        LinkCard("Second", "https://example.com/b", icon="workflows"),
     ],
 )
 
@@ -82,7 +80,7 @@ def test_reproduces_the_committed_page_byte_for_byte(profile: SeedProfile, fixtu
         PageModel(
             name=profile.name,
             tagline=TAGLINE,
-            cards=[to_card(link, link.description) for link in profile.links],
+            cards=[to_card(link) for link in profile.links],
         ),
         year=GOLDEN_YEAR,
         profile_slug=profile.slug,
@@ -106,8 +104,6 @@ class TestRenderPage:
                     LinkCard(
                         "<script>alert(1)</script>",
                         "https://example.com",
-                        'a "b" & c',
-                        icon_url="",
                         icon="arrow",
                     )
                 ],
@@ -118,26 +114,26 @@ class TestRenderPage:
         assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
 
     def test_drops_a_javascript_href(self) -> None:
-        card = LinkCard("Bad", "javascript:alert(1)", "", icon_url="", icon="arrow")
+        card = LinkCard("Bad", "javascript:alert(1)", icon="arrow")
         html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         assert "javascript:" not in html
         assert 'href="#"' in html
 
     def test_renders_a_mailto_card_with_a_gmail_link(self) -> None:
-        card = LinkCard("Email", "mailto:shifra@render.com", "", icon_url="", icon="email")
+        card = LinkCard("Email", "mailto:shifra@render.com", icon="email")
         html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         gmail = "https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=shifra@render.com"
         assert f'href="mailto:shifra@render.com" data-gmail="{gmail}">' in html
 
     def test_keeps_mailto_headers_in_the_href(self) -> None:
         url = "mailto:shifra@render.com?subject=Hi&body=Hello"
-        card = LinkCard("Email", url, "", icon_url="", icon="email")
+        card = LinkCard("Email", url, icon="email")
         html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         gmail = "https://mail.google.com/mail/?view=cm&fs=1&to=shifra@render.com&su=Hi&body=Hello"
         assert f'href="{escape_html(url)}" data-gmail="{escape_html(gmail)}"' in html
 
     def test_gives_only_email_cards_a_gmail_link(self) -> None:
-        card = LinkCard("Site", "https://render.com/", "", icon_url="", icon="arrow")
+        card = LinkCard("Site", "https://render.com/", icon="arrow")
         html = render_page(replace(MODEL, cards=[card]), profile_slug="shifra")
         assert 'data-gmail="' not in html
 
@@ -170,8 +166,12 @@ class TestRenderPage:
 
     def test_hints_that_any_mailto_card_opens_email(self) -> None:
         html = render_page(model_with(url="mailto:a@b.com?subject=Hi"), profile_slug="x")
-        assert '<span class="card__hint">Opens your email</span>' in html
-        assert "(opens in a new tab)" not in html
+        cards = html.split("<script>")[0]
+        assert '<span class="card__hint">Opens your email</span>' in cards
+        assert "(opens in a new tab)" not in cards
+
+    def test_announces_the_new_tab_when_the_script_swaps_in_gmail(self) -> None:
+        assert "note.textContent = '(opens in a new tab)';" in PAGE_SCRIPT
 
     def test_shows_the_profile_name_and_tagline_at_the_top(self) -> None:
         html = render_page(MODEL, profile_slug="x")
@@ -203,10 +203,6 @@ class TestRenderPage:
 
     def test_writes_the_footer_copy(self) -> None:
         assert "&copy; 2026 Render Inc.</footer>" in render_page(MODEL, 2026, profile_slug="x")
-
-    def test_shows_no_description_favicon_or_target(self) -> None:
-        html = render_page(MODEL, profile_slug="x")
-        assert "card__desc" not in html and "card__icon" not in html and "card__target" not in html
 
     def test_always_renders_the_same_icon_row(self) -> None:
         assert 'class="social__icon social__icon--github"' in render_page(
@@ -273,9 +269,7 @@ class TestEscapeHtmlAndSafeUrl:
 
 
 def card(title: str, section: str = "") -> LinkCard:
-    return LinkCard(
-        title, f"https://example.com/{title}", "", icon_url="", icon="arrow", section=section
-    )
+    return LinkCard(title, f"https://example.com/{title}", icon="arrow", section=section)
 
 
 TABBED = PageModel(

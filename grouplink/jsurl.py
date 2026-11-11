@@ -1,17 +1,16 @@
 """A subset of the WHATWG URL parser, so the Python pages match the TypeScript ones.
 
-`safe_url` and `favicon_url` in the TypeScript build run every href through the JS
+`safe_url` in the TypeScript build runs every href through the JS
 `URL` constructor, which normalizes the string: a bare origin gains a trailing
 slash, the host lowercases, a default port drops, and some characters get
-percent-encoded. `urllib.parse` does none of that, so a port of those two functions
+percent-encoded. `urllib.parse` does none of that, so a port of that function
 built on `urllib.parse` would render a different page than the TypeScript build.
 
-Only the special schemes are parsed. Everything else returns None, which is what
-both callers want: `safe_url` collapses an unsupported string to "#", and
-`favicon_url` returns "" for a base the JS constructor would have thrown on.
+Only the special schemes are parsed. Everything else returns None, so `safe_url`
+collapses an unsupported string to "#".
 
 The scheme predicates at the bottom answer which URLs the site accepts at all.
-`mailto:` is not a special scheme, so `parse` returns None for one; the callers
+`mailto:` is not a special scheme, so `parse` returns None for one. The callers
 that allow it test it with `is_mailto_url` first.
 """
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 from render_lab_tasks_notion.types import PageDTO, PropertyValue
 
@@ -165,12 +165,12 @@ def page_order(rows: list[LinkRow], ranks: Mapping[str, int]) -> list[LinkRow]:
 def is_renderable_url(url: str) -> bool:
     """Whether a card may point at this URL.
 
-    An http(s) link is scraped and health-checked; a mailto: link is neither, and
+    An http(s) link is health-checked; a mailto: link is not, and
     still renders. Anything else would reach httpx as a string it refuses, which
     fails the whole rebuild rather than the one row.
 
     The http branch also parses the URL. An http(s) string httpx cannot use, such as
-    a host with a space in it, fails here instead of in the scrape.
+    a host with a space in it, fails here instead of in the health check.
     """
     return (is_http_url(url) and parse_url(url) is not None) or is_mailto_url(url)
 
@@ -319,7 +319,7 @@ def unique_urls(rows: list[LinkRow]) -> list[str]:
 
 
 def fetchable_urls(urls: list[str]) -> list[str]:
-    """The URLs worth scraping and health-checking. A mailto: link has no page."""
+    """The URLs worth health-checking. A mailto: link has no page."""
     return [url for url in urls if is_http_url(url)]
 
 
@@ -343,35 +343,10 @@ def visible_rows(rows: list[LinkRow]) -> list[LinkRow]:
     return [row for row in rows if row.visible]
 
 
-def favicon_url(raw_url: str) -> str:
-    """Best-effort icon. The card hides the image when this 404s."""
-    parsed = parse_url(raw_url)
-    if parsed is None:
-        return ""
-    return f"{parsed.scheme}://{parsed.authority}/favicon.ico"
-
-
-def card_description(meta: Mapping[str, Any]) -> str:
-    """The card blurb. Empty when the page has no meta description."""
-    return _read_string(meta.get("description"))
-
-
-def to_card(row: CardSource, description: str) -> LinkCard:
-    """One card, from the Notion row and whatever description the scrape found.
+def to_card(row: CardSource) -> LinkCard:
+    """One card, from the Notion row.
 
     Takes the row's fields rather than a LinkRow, so the seed links in scripts/ fit
     too.
     """
-    return LinkCard(
-        title=row.title,
-        url=row.url,
-        description=description,
-        icon_url=favicon_url(row.url),
-        icon=row.icon,
-        section=row.section,
-    )
-
-
-def meta_cache_key(url: str) -> str:
-    """Cache key for one URL's scraped metadata. `v1` lets a shape change invalidate."""
-    return f"gl:meta:v1:{url}"
+    return LinkCard(title=row.title, url=row.url, icon=row.icon, section=row.section)

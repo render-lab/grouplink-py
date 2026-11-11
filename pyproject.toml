@@ -9,7 +9,6 @@ dependencies = [
     "render==1.0.1",
     "render-lab-tasks-core==0.1.1",
     "render-lab-tasks-notion==0.1.0",
-    "render-lab-tasks-scrape==0.1.0",
     "render-lab-tasks-render-kv==0.1.0",
     "render-lab-tasks-http==0.1.0",
     "render-lab-triggers==0.1.0",

@@ -32,9 +32,6 @@ class RebuildConfig:
     #: Slug of the profile the root page shows.
     default_slug: str
 
-    #: Seconds a scraped metadata record stays in Key Value.
-    cache_ttl_seconds: int
-
     #: Public URL of the page, for the run log.
     site_url: str
 
@@ -102,8 +99,5 @@ def load_config(
         else env_int("LINKS_LIMIT", environ.get("LINKS_LIMIT"), 100),
         dry_run=env_flag(environ.get("DRY_RUN"), False) if dry_run is None else dry_run,
         default_slug=default_slug,
-        cache_ttl_seconds=env_int(
-            "METADATA_TTL_SECONDS", environ.get("METADATA_TTL_SECONDS"), 604_800
-        ),
         site_url=environ.get("SITE_URL", ""),
     )

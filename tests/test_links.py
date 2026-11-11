@@ -7,10 +7,8 @@ from render_lab_tasks_notion.types import PageDTO
 
 from grouplink.links import (
     assert_default_slug,
-    favicon_url,
     fetchable_urls,
     group_by_profile,
-    meta_cache_key,
     page_order,
     section_ranks,
     servable_profiles,
@@ -313,17 +311,6 @@ class TestFetchableUrls:
         assert fetchable_urls(urls) == ["https://render.com", "http://render.com"]
 
 
-class TestFaviconUrl:
-    def test_points_at_the_origin_root(self) -> None:
-        assert favicon_url("https://render.com/tutorials/x") == "https://render.com/favicon.ico"
-
-    def test_returns_empty_for_a_url_that_will_not_parse(self) -> None:
-        assert favicon_url("not a url") == ""
-
-    def test_returns_empty_for_a_mailto_link(self) -> None:
-        assert favicon_url("mailto:shifra@render.com") == ""
-
-
 class TestAssertDefaultSlug:
     def test_passes_when_a_profile_has_the_slug(self) -> None:
         assert_default_slug(to_profile_rows(PROFILES), "shifra")
@@ -361,10 +348,6 @@ class TestServableProfiles:
         ]
 
 
-def test_meta_cache_key_is_versioned() -> None:
-    assert meta_cache_key("https://a.example") == "gl:meta:v1:https://a.example"
-
-
 def test_to_card_keeps_the_section() -> None:
     row = to_link_rows([page({"URL": "https://a.example", "Section": "Startups"}, "A")])[0]
-    assert to_card(row, "").section == "Startups"
+    assert to_card(row).section == "Startups"

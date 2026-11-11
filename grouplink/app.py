@@ -16,9 +16,8 @@ from render import Workflows
 from render_lab_tasks_http.tasks import app as http_app
 from render_lab_tasks_notion.tasks import app as notion_app
 from render_lab_tasks_render_kv.tasks import app as kv_app
-from render_lab_tasks_scrape.tasks import app as scrape_app
 
 import grouplink.notion_relation  # noqa: F401  (imported for its side effect)
 from grouplink.notion_schema import app as schema_app
 
-app = Workflows.from_workflows(notion_app, scrape_app, kv_app, http_app, schema_app)
+app = Workflows.from_workflows(notion_app, kv_app, http_app, schema_app)

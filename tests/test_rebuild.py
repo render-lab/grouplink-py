@@ -3,7 +3,7 @@ ctx.run to the owning pack's *_impl with a fake injected at the vendor port. No
 network and no secrets, but the pack code, the DTO mapping, the relation shim, and
 the composition in grouplink/rebuild.py are all real.
 
-The vendor port for four of the five packs is an httpx.AsyncClient, so the fake goes
+The vendor port for three of the four packs is an httpx.AsyncClient, so the fake goes
 in as an httpx.MockTransport and the pack's own request building, pagination, and DTO
 mapping all run. Key Value talks to redis instead, so that one gets a port fake.
 """
@@ -29,9 +29,6 @@ from render_lab_tasks_notion.query_database import query_database_impl
 from render_lab_tasks_render_kv.client import Deps as KvDeps
 from render_lab_tasks_render_kv.get import get_impl as kv_get_impl
 from render_lab_tasks_render_kv.set import set_impl as kv_set_impl
-from render_lab_tasks_scrape.client import Client as ScrapePackClient
-from render_lab_tasks_scrape.client import Deps as ScrapeDeps
-from render_lab_tasks_scrape.extract_metadata import extract_metadata_impl
 
 from grouplink.links import LINK_SORTS
 from grouplink.notion_schema import read_select_options_impl
@@ -104,7 +101,7 @@ def raw_profile(id: str, name: str, slug: str, tagline: str) -> dict[str, Any]:
 
 
 LINK_PAGES = [
-    # Shared by both profiles, so it must be scraped and checked exactly once.
+    # Shared by both profiles, so it must be checked exactly once.
     raw_page("Discord", "https://discord.com/invite/x", 1, profiles=[SHIFRA, ALEX]),
     raw_page("Startups", "https://render.com/startups", 2),
     raw_page("Hidden", "https://render.com/secret", 3, visible=False),
@@ -138,8 +135,6 @@ class FakeKv:
 
 @dataclass
 class Fakes:
-    #: URL -> cached JSON, for kv.get. Keys are card URLs, not cache keys.
-    cache: dict[str, str] = field(default_factory=dict)
     #: URL -> status, for http.request. Defaults to 200.
     statuses: dict[str, int] = field(default_factory=dict)
     #: Raw link rows, when a case needs more or fewer than LINK_PAGES.
@@ -155,13 +150,12 @@ class Fakes:
 class Harness:
     def __init__(self, fakes: Fakes) -> None:
         self.fakes = fakes
-        self.scraped: list[str] = []
         self.checked: list[str] = []
         #: Data source id -> the body of its Notion query.
         self.notion_queries: dict[str, dict[str, Any]] = {}
         #: Name of every task the run dispatched, in order.
         self.tasks: list[str] = []
-        self.kv = FakeKv({f"gl:meta:v1:{url}": value for url, value in fakes.cache.items()})
+        self.kv = FakeKv({})
         if fakes.site is not None:
             self.kv._cache[SITE_KEY] = fakes.site
         self._in_flight = 0
@@ -201,38 +195,22 @@ class Harness:
         raise AssertionError(f"no fake for Notion {request.method} {path}")
 
     def _link_site(self, request: httpx.Request) -> httpx.Response:
-        """Both the scrape and the health check land here."""
-        url = str(request.url)
-        status = self.fakes.statuses.get(url, 200)
-        return httpx.Response(
-            status,
-            headers={"content-type": "text/html"},
-            text=(
-                "<html><head><title>T</title>"
-                f'<meta name="description" content="desc for {url}">'
-                "</head></html>"
-            ),
-        )
+        """The health check lands here."""
+        return httpx.Response(self.fakes.statuses.get(str(request.url), 200))
 
     # --- the context ---
 
-    async def _scrape(self, input: dict[str, Any]) -> Any:
-        self.scraped.append(input["url"])
+    async def _check(self, input: dict[str, Any]) -> Any:
+        self.checked.append(input["url"])
         self._in_flight += 1
         self.peak_in_flight = max(self.peak_in_flight, self._in_flight)
         try:
             await asyncio.sleep(0)
-            return await extract_metadata_impl(
-                self.ctx, input, deps=ScrapeDeps(scrape=ScrapePackClient(self._http, env=ENV))
+            return await request_impl(
+                self.ctx, input, deps=HttpDeps(http=HttpPackClient(self._http, env=ENV))
             )
         finally:
             self._in_flight -= 1
-
-    async def _check(self, input: dict[str, Any]) -> Any:
-        self.checked.append(input["url"])
-        return await request_impl(
-            self.ctx, input, deps=HttpDeps(http=HttpPackClient(self._http, env=ENV))
-        )
 
     @property
     def ctx(self) -> Any:
@@ -246,7 +224,6 @@ class Harness:
             "grouplink.readSelectOptions": lambda a: read_select_options_impl(
                 self.ctx, a, deps=NotionDeps(notion=NotionPackClient(self._http, env=ENV))
             ),
-            "scrape.extractMetadata": self._scrape,
             "kv.get": lambda a: kv_get_impl(self.ctx, a, deps=KvDeps(render_kv=self.kv)),
             "kv.set": lambda a: kv_set_impl(self.ctx, a, deps=KvDeps(render_kv=self.kv)),
             "http.request": self._check,
@@ -265,9 +242,6 @@ class Harness:
 
     def site_sets(self) -> list[dict[str, Any]]:
         return [entry for entry in self.kv.sets if entry["key"] == SITE_KEY]
-
-    def meta_sets(self) -> list[dict[str, Any]]:
-        return [entry for entry in self.kv.sets if entry["key"] != SITE_KEY]
 
     def snapshot(self) -> Snapshot:
         """The snapshot the last run wrote to Key Value."""
@@ -381,7 +355,7 @@ class TestRebuild:
         assert "Careers" in h.html("shifra")
         assert "Careers" in h.html("alex")
 
-    async def test_scrapes_an_everyone_link_once_not_once_per_page(self, env: Any) -> None:
+    async def test_checks_an_everyone_link_once_not_once_per_page(self, env: Any) -> None:
         h = harness(
             links=[
                 *LINK_PAGES,
@@ -390,7 +364,7 @@ class TestRebuild:
         )
         await rebuild.func(h.ctx, {})
 
-        assert h.scraped.count("https://render.com/careers") == 1
+        assert h.checked.count("https://render.com/careers") == 1
 
     async def test_gives_each_page_its_own_name_and_tagline(self, env: Any) -> None:
         h = harness()
@@ -420,15 +394,13 @@ class TestRebuild:
         assert reasons["Script"] == "URL is not an http, https, or mailto: link"
 
     async def test_reads_a_url_with_no_scheme_as_https(self, env: Any) -> None:
-        """A Notion cell that holds a bare host renders. The run scrapes and checks the
-        https URL, because httpx refuses the cell as typed.
+        """A Notion cell that holds a bare host renders. The run checks the https URL,
+        because httpx refuses the cell as typed.
         """
         h = harness(links=[*LINK_PAGES, raw_page("Bare host", "render.com/careers", 22)])
         await rebuild.func(h.ctx, {})
 
-        assert "render.com/careers" not in h.scraped
         assert "render.com/careers" not in h.checked
-        assert "https://render.com/careers" in h.scraped
         assert "https://render.com/careers" in h.checked
         assert "Bare host" in h.html()
 
@@ -439,16 +411,14 @@ class TestRebuild:
         h = harness(links=[*LINK_PAGES, raw_page("Script", "javascript:alert(1)", 22)])
         await rebuild.func(h.ctx, {})
 
-        assert "javascript:alert(1)" not in h.scraped
         assert "javascript:alert(1)" not in h.checked
         assert "Script" not in h.html()
 
-    async def test_renders_a_mailto_row_without_scraping_or_checking_it(self, env: Any) -> None:
+    async def test_renders_a_mailto_row_without_checking_it(self, env: Any) -> None:
         address = "mailto:shifra@render.com"
         h = harness(links=[*LINK_PAGES, raw_page("Email me", address, 24)])
         result = await rebuild.func(h.ctx, {})
 
-        assert address not in h.scraped
         assert address not in h.checked
         assert [row["title"] for row in result["skipped"]] == ["Hidden"]
 
@@ -463,13 +433,19 @@ class TestRebuild:
         with pytest.raises(ValueError, match="matches no Slug"):
             await rebuild.func(h.ctx, {})
 
-    async def test_checks_and_scrapes_a_shared_link_once(self, env: Any) -> None:
+    async def test_checks_a_shared_link_once(self, env: Any) -> None:
         h = harness()
         await rebuild.func(h.ctx, {})
 
-        assert h.scraped.count("https://discord.com/invite/x") == 1
-        assert len(h.scraped) == 3
+        assert h.checked.count("https://discord.com/invite/x") == 1
         assert len(h.checked) == 3
+
+    async def test_writes_only_the_site_to_key_value(self, env: Any) -> None:
+        h = harness()
+        await rebuild.func(h.ctx, {})
+
+        assert [entry["key"] for entry in h.kv.sets] == [SITE_KEY]
+        assert not [task for task in h.tasks if task.startswith("scrape.")]
 
     async def test_references_assets_under_links(self, env: Any) -> None:
         h = harness()
@@ -482,12 +458,6 @@ class TestRebuild:
         assert "url('/links/assets/fonts/PPNeueMontreal-Variable.woff2')" in html
         assert not [m for m in ('"assets/', "'assets/", "(assets/", "'/assets/") if m in html]
 
-    async def test_carries_the_scraped_description_into_the_snapshot(self, env: Any) -> None:
-        h = harness()
-        await rebuild.func(h.ctx, {})
-        descriptions = [card.description for card in h.snapshot().pages["shifra"].cards]
-        assert "desc for https://discord.com/invite/x" in descriptions
-
     async def test_links_to_the_notion_url_untouched(self, env: Any) -> None:
         h = harness()
         await rebuild.func(h.ctx, {})
@@ -496,37 +466,12 @@ class TestRebuild:
         assert 'href="https://discord.com/invite/x"' in html
         assert "utm_" not in html
 
-    async def test_skips_the_scrape_for_a_url_already_in_key_value(self, env: Any) -> None:
-        h = harness(
-            cache={"https://discord.com/invite/x": json.dumps({"description": "cached blurb"})}
-        )
-        result = await rebuild.func(h.ctx, {})
-
-        assert result["cacheHits"] == 1
-        assert len(h.scraped) == 2
-        descriptions = [card.description for card in h.snapshot().pages["shifra"].cards]
-        assert "cached blurb" in descriptions
-
-    async def test_caches_every_fresh_scrape_with_a_ttl(self, env: Any) -> None:
-        h = harness()
-        await rebuild.func(h.ctx, {})
-        assert len(h.meta_sets()) == 3
-        assert h.meta_sets()[0]["ttlSeconds"] == 604_800
-
-    async def test_writes_the_cache_in_the_same_json_shape_as_typescript(self, env: Any) -> None:
-        h = harness()
-        await rebuild.func(h.ctx, {})
-        assert h.kv.sets[0]["value"].startswith('{"description":"desc for ')
-        assert ", " not in h.kv.sets[0]["value"]
-
-    async def test_publishes_with_no_description_when_a_scrape_fails(self, env: Any) -> None:
+    async def test_publishes_when_a_health_check_fails(self, env: Any) -> None:
         h = harness(statuses={"https://render.com/startups": 999})
         result = await rebuild.func(h.ctx, {})
 
         assert result["published"] is True
-        assert "desc for https://render.com/startups" not in h.html()
         assert 'href="https://render.com/startups"' in h.html()
-        assert "https://render.com/startups" not in str(h.meta_sets())
         assert result["deadLinks"] == ["https://render.com/startups (no response)"]
 
     async def test_reports_unreachable_links(self, env: Any) -> None:
@@ -573,13 +518,13 @@ class TestRebuild:
         assert "unchanged" in caplog.text
         assert "https://render.com/startups (404)" in caplog.text
 
-    async def test_scrapes_in_batches_instead_of_one_run_per_link(self, env: Any) -> None:
+    async def test_checks_in_batches_instead_of_one_run_per_link(self, env: Any) -> None:
         links = [raw_page(f"Link {i}", f"https://example.com/{i}", i) for i in range(25)]
         h = harness(links=links)
         result = await rebuild.func(h.ctx, {})
 
         assert result["linkCount"] == 25
-        assert len(h.scraped) == 25
+        assert len(h.checked) == 25
         assert h.peak_in_flight <= 10
 
     async def test_raises_when_the_default_slug_matches_no_profile(self, env: Any) -> None:
@@ -599,9 +544,6 @@ class TestRebuild:
         assert list(snapshot.pages) == ["shifra", "alex"]
         assert snapshot.pages["alex"].name == "Alex Rivera"
         assert [card.title for card in snapshot.pages["shifra"].cards] == ["Discord", "Startups"]
-        assert (
-            snapshot.pages["shifra"].cards[0].description == "desc for https://discord.com/invite/x"
-        )
         assert result["published"] is True
         assert result["hash"] == snapshot.hash
 

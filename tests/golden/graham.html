@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'sha256-f+yLGaP9q+VnPW4HQWujcGcEOQzTZ0GJCZmfqitaFUA='; script-src 'sha256-wSGuyAy4MdkEjxxeUhCwniqy08tiGYll39ae1Rn7Sps='; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'sha256-BqIQYBG8iWpCMkVJsa1le26q3ppn6Lzn6t3Vtp1zC+Y='; script-src 'sha256-dJTrLNskSiwphPx9NrEpmUIW+WyPDtc8O3DG2UVu77Y='; font-src 'self'; base-uri 'none'; form-action 'none'">
 <title>Render Links</title>
 <meta name="description" content="The fastest path to production for full-stack applications and agents">
 <meta property="og:title" content="Graham — links">
@@ -269,7 +269,6 @@ body {
 .card__hint {
   font-size: 14px;
   line-height: 16px;
-  letter-spacing: 0.01em;
   color: var(--text-faint);
 }
 
@@ -328,7 +327,6 @@ body {
   padding-top: 48px;
   font-size: 14px;
   line-height: 1.429;
-  letter-spacing: 0.01em;
   color: var(--text-faint);
   text-align: center;
 }
@@ -417,6 +415,10 @@ if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
     a.href = a.dataset.gmail;
     a.target = '_blank';
     a.rel = 'noopener';
+    var note = document.createElement('span');
+    note.className = 'visually-hidden';
+    note.textContent = '(opens in a new tab)';
+    a.append(note);
   });
 }
 

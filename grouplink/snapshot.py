@@ -91,8 +91,6 @@ def _page_to_json(slug: str, page: PageModel) -> dict[str, Any]:
             {
                 "title": card.title,
                 "url": card.url,
-                "description": card.description,
-                "iconUrl": card.icon_url,
                 "icon": card.icon,
                 "section": card.section,
             }
@@ -123,8 +121,6 @@ def _card_from_json(card: Any) -> LinkCard:
     return LinkCard(
         title=_str(card, "title"),
         url=_str(card, "url"),
-        description=_str(card, "description"),
-        icon_url=_str(card, "iconUrl"),
         icon=icon if is_icon_name(icon) else DEFAULT_ICON,
         # A Workflow that predates sections writes no key, so the card has none.
         section=_str(card, "section") if "section" in card else "",

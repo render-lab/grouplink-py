@@ -1,8 +1,8 @@
 """Live integration test. Opt-in only — gated behind RUN_LIVE=1 and real secrets.
 
 Requires NOTION_TOKEN, NOTION_LINKS_DATABASE_ID, NOTION_PROFILES_DATABASE_ID,
-SITE_DEFAULT_SLUG, and REDIS_URL. Runs in dry-run, so it reads Notion, scrapes,
-caches, and health-checks without publishing anything.
+SITE_DEFAULT_SLUG, and REDIS_URL. Runs in dry-run, so it reads Notion and
+health-checks without publishing anything.
 
 Run it with `RUN_LIVE=1 uv run pytest tests/test_rebuild_live.py --enable-socket`.
 """
@@ -22,7 +22,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-async def test_reads_the_real_notion_database_and_enriches_every_link() -> None:
+async def test_reads_the_real_notion_database_and_checks_every_link() -> None:
     assert os.environ.get("NOTION_TOKEN"), "set NOTION_TOKEN"
     assert os.environ.get("NOTION_LINKS_DATABASE_ID"), "set NOTION_LINKS_DATABASE_ID"
     assert os.environ.get("REDIS_URL"), "set REDIS_URL to a Key Value instance"
@@ -33,12 +33,3 @@ async def test_reads_the_real_notion_database_and_enriches_every_link() -> None:
     assert result["published"] is False
     assert result["linkCount"] > 0
     assert result["deadLinks"] == [], "every link should resolve"
-
-
-async def test_serves_the_second_run_from_the_key_value_cache() -> None:
-    assert os.environ.get("REDIS_URL"), "set REDIS_URL to a Key Value instance"
-
-    await rebuild.func(local_ctx(), {"dryRun": True})
-    second = await rebuild.func(local_ctx(), {"dryRun": True})
-
-    assert second["cacheHits"] == second["linkCount"]

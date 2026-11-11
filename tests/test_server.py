@@ -23,8 +23,6 @@ SHIFRA = PageModel(
         LinkCard(
             title="Docs",
             url="https://render.com/docs",
-            description="Guides",
-            icon_url="https://render.com/favicon.ico",
             icon="info",
         )
     ],
@@ -288,9 +286,7 @@ async def test_keeps_the_newer_snapshot_when_an_older_read_finishes_last() -> No
 
 
 def tab_card(title: str, section: str) -> LinkCard:
-    return LinkCard(
-        title, f"https://example.com/{title}", "", icon_url="", icon="arrow", section=section
-    )
+    return LinkCard(title, f"https://example.com/{title}", icon="arrow", section=section)
 
 
 TABBED = PageModel(

@@ -32,14 +32,10 @@ from grouplink.jsurl import parse as parse_url
 class LinkCard:
     """One row of the links list."""
 
-    #: Display text. Comes from Notion, not from the scrape.
+    #: Display text, from Notion.
     title: str
     #: Final href, exactly as the Notion row gives it.
     url: str
-    #: Scraped og:title or meta description; may be empty. The page does not show it.
-    description: str
-    #: `<origin>/favicon.ico`. The page does not show it.
-    icon_url: str
     #: Which file under grouplink/assets/link-icons the card draws in its left column.
     #: The names `one`, `two`, and `three` have no file. They draw a numbered box.
     icon: IconName
@@ -407,7 +403,6 @@ _STYLES_TAIL = """
 .card__hint {
   font-size: 14px;
   line-height: 16px;
-  letter-spacing: 0.01em;
   color: var(--text-faint);
 }
 
@@ -466,7 +461,6 @@ _STYLES_TAIL = """
   padding-top: 48px;
   font-size: 14px;
   line-height: 1.429;
-  letter-spacing: 0.01em;
   color: var(--text-faint);
   text-align: center;
 }
@@ -492,13 +486,18 @@ _STYLES_TAIL = """
 STYLES = _STYLES_HEAD + ICON_MASKS + _STYLES_TAIL
 
 # An email card links to mailto:, which opens the mail app on a phone. A desktop
-# often has no mail app, so a mouse or trackpad swaps in Gmail's compose page.
+# often has no mail app, so a mouse or trackpad swaps in Gmail's compose page, which
+# opens in a new tab. The script then adds the same hidden text as a web card.
 PAGE_SCRIPT = """
 if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
   document.querySelectorAll('a[data-gmail]').forEach(function (a) {
     a.href = a.dataset.gmail;
     a.target = '_blank';
     a.rel = 'noopener';
+    var note = document.createElement('span');
+    note.className = 'visually-hidden';
+    note.textContent = '(opens in a new tab)';
+    a.append(note);
   });
 }
 
@@ -582,7 +581,10 @@ def _render_card(card: LinkCard) -> str:
 
     number = ORDINALS.get(card.icon)
     if number is None:
-        mark = f'<span class="card__mark card__mark--{escape_html(card.icon)}" aria-hidden="true"></span>'
+        mark = (
+            f'<span class="card__mark card__mark--{escape_html(card.icon)}" '
+            'aria-hidden="true"></span>'
+        )
     else:
         mark = f'<span class="card__step" aria-hidden="true">{number}</span>'
         body = f'<span class="visually-hidden">Step {number}: </span>' + body
@@ -632,11 +634,11 @@ def _one_line(tagline: str) -> str:
     return _LINE_BREAK_RUN.sub(" ", tagline).strip()
 
 
-def _render_intro(model: PageModel, tagline: str, is_default: bool) -> str:
+def _render_intro(name: str, tagline: str, is_default: bool) -> str:
     """The profile name, then the tagline. The default page and an empty tagline
     show no tagline paragraph.
     """
-    title = f'        <h1 class="intro__title">{escape_html(model.name)}</h1>'
+    title = f'        <h1 class="intro__title">{escape_html(name)}</h1>'
     text = (
         f'\n        <p class="intro__text">{escape_html(tagline)}</p>'
         if tagline and not is_default
@@ -670,6 +672,11 @@ def _render_tabs(tabs: list[Section], current: Section, profile_slug: str) -> st
 """
 
 
+def _render_list(cards: list[LinkCard], attributes: str) -> str:
+    items = "\n".join(_render_card(card) for card in cards)
+    return f'        <div class="links"{attributes}>\n{items}\n        </div>'
+
+
 def _render_lists(tabs: list[Section], current: Section) -> str:
     """One list of cards per tab. Only the current tab's list shows.
 
@@ -684,11 +691,6 @@ def _render_lists(tabs: list[Section], current: Section) -> str:
         )
         for tab in tabs
     )
-
-
-def _render_list(cards: list[LinkCard], attributes: str) -> str:
-    items = "\n".join(_render_card(card) for card in cards)
-    return f'        <div class="links"{attributes}>\n{items}\n        </div>'
 
 
 def render_page(
@@ -715,7 +717,7 @@ def render_page(
     current = tabs[0] if section is None else find_section(tabs, section)
     if current is None:
         raise ValueError(f'the page has no section "{section}"')
-    intro = _render_intro(model, tagline_text, is_default)
+    intro = _render_intro(model.name, tagline_text, is_default)
     tabs_block = _render_tabs(tabs, current, profile_slug)
     lists = _render_lists(tabs, current)
     socials = "\n".join(_render_social(social) for social in SOCIALS)

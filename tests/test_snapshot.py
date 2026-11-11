@@ -19,8 +19,6 @@ SHIFRA = PageModel(
         LinkCard(
             title="Docs",
             url="https://render.com/docs",
-            description="Guides",
-            icon_url="https://render.com/favicon.ico",
             icon="info",
             section="Startups",
         )
@@ -53,8 +51,6 @@ def test_writes_the_documented_shape() -> None:
             {
                 "title": "Docs",
                 "url": "https://render.com/docs",
-                "description": "Guides",
-                "iconUrl": "https://render.com/favicon.ico",
                 "icon": "info",
                 "section": "Startups",
             }
