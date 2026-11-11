@@ -15,9 +15,12 @@ from pathlib import Path
 
 import pytest
 
+from grouplink.icons import ICON_NAMES
 from grouplink.links import to_card
 from grouplink.page import (
+    ORDINALS,
     PAGE_SCRIPT,
+    SVG_ICONS,
     LinkCard,
     PageModel,
     escape_html,
@@ -29,6 +32,7 @@ from grouplink.page import (
 from scripts.placeholder import PROFILES, TAGLINE, SeedProfile
 
 GOLDEN = Path(__file__).parent / "golden"
+ASSETS = Path(__file__).parent.parent / "grouplink" / "assets"
 
 #: The footer year the golden pages were rendered with. Pinned, so the fixtures do
 #: not go stale on 1 January.
@@ -335,3 +339,15 @@ class TestTabs:
     def test_refuses_a_section_the_page_does_not_have(self) -> None:
         with pytest.raises(ValueError, match="nope"):
             render_page(TABBED, profile_slug="shifra", section="nope")
+
+
+def test_icon_names_include_the_ordinals_and_play() -> None:
+    assert {"one", "two", "three", "play"} <= set(ICON_NAMES)
+
+
+def test_every_mask_icon_has_a_file() -> None:
+    for name in ICON_NAMES:
+        if name in ORDINALS:
+            continue
+        ext = "svg" if name in SVG_ICONS else "png"
+        assert (ASSETS / "link-icons" / f"{name}.{ext}").is_file()

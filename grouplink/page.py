@@ -149,11 +149,21 @@ ROW_STAGGER = "\n".join(
     f".card:nth-child({i + 1}) {{ animation-delay: {i * 30}ms; }}" for i in range(20)
 )
 
+# Icons drawn as a digit. They have no file and no mask rule.
+ORDINALS: dict[IconName, int] = {"one": 1, "two": 2, "three": 3}
+
+# Icons whose file is an .svg. All other icon files are .png.
+SVG_ICONS: frozenset[IconName] = frozenset(
+    {"email", "form", "render", "play", "sandbox", "workflows"}
+)
+
 # One mask rule per icon file. Generated into the <style> block for the same
 # reason ROW_STAGGER is.
 ICON_MASKS = "\n".join(
-    f".card__mark--{name} {{ --mark: url('/links/assets/link-icons/{name}.png'); }}"
+    f".card__mark--{name} {{ --mark: url('/links/assets/link-icons/{name}."
+    f"{'svg' if name in SVG_ICONS else 'png'}'); }}"
     for name in ICON_NAMES
+    if name not in ORDINALS
 )
 
 _STYLES_HEAD = """

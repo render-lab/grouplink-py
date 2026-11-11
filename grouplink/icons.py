@@ -1,9 +1,11 @@
 """The card icon library. A leaf module: both the Notion reader and the page
 renderer name icons, and neither should have to import the other.
 
-An icon name is the filename without .png under grouplink/assets/link-icons.
-Adding an icon takes a file, a name here, and an option in the Notion dropdown; no other code
-names an icon.
+An icon name is the filename without its extension under grouplink/assets/link-icons.
+The file is a .svg for the names in page.SVG_ICONS and a .png for all others. The
+ordinal names ("one", "two", "three") have no file; page.ORDINALS draws them as digits.
+Adding an icon takes a file, a name here, and an option in the Notion dropdown. A new
+SVG icon also needs its name in page.SVG_ICONS.
 """
 
 from __future__ import annotations
@@ -21,6 +23,10 @@ IconName = Literal[
     "sandbox",
     "upload",
     "workflows",
+    "one",
+    "two",
+    "three",
+    "play",
 ]
 
 #: The same names at runtime, in declaration order. That order decides the order of

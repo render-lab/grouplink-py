@@ -12,3 +12,5 @@ tmp/
 
 # Deploy runbook, kept local.
 manual.md
+
+.playwright-mcp/
