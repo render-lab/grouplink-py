@@ -289,7 +289,7 @@ body {
   margin: 0;
   max-width: 36ch;
   color: var(--text-secondary);
-  text-wrap: balance;
+  text-wrap: pretty;
 }
 
 .sections {
@@ -384,6 +384,7 @@ _STYLES_TAIL = """
   font-size: 11px;
   font-weight: 500;
   line-height: 1;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 
@@ -405,6 +406,7 @@ _STYLES_TAIL = """
 .card__hint {
   font-size: 14px;
   line-height: 16px;
+  letter-spacing: 0.01em;
   color: var(--text-faint);
 }
 
@@ -463,6 +465,7 @@ _STYLES_TAIL = """
   padding-top: 48px;
   font-size: 14px;
   line-height: 1.429;
+  letter-spacing: 0.01em;
   color: var(--text-faint);
   text-align: center;
 }
@@ -472,6 +475,7 @@ _STYLES_TAIL = """
 }
 
 @media (max-width: 767.98px) {
+  :root { --grid-margin: 16px; }
   .intro__title { font-size: 24px; }
   .page { padding-top: 32px; }
   .main { gap: 24px; padding-top: 40px; }
