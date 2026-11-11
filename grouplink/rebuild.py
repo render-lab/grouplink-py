@@ -3,13 +3,14 @@ the links, write the site to Key Value for the web service to serve, and log the
 
 Every `await ctx.run(...)` below is a separate durable run on its own instance, with
 that package's retry policy, tracked in the dashboard. The health check fans out
-through `map_in_batches`, so the run opens at most batch.py's BATCH_SIZE at a time.
+in batches of BATCH_SIZE, so the run opens at most that many checks at a time.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any, TypedDict
 
@@ -22,7 +23,6 @@ from render_lab_tasks_render_kv.get import get as kv_get
 from render_lab_tasks_render_kv.set import set as kv_set
 
 from grouplink.app import app
-from grouplink.batch import map_in_batches
 from grouplink.config import RebuildInput, load_config
 from grouplink.icons import DEFAULT_ICON
 from grouplink.links import (
@@ -46,6 +46,10 @@ log = logging.getLogger(__name__)
 # Statuses that mean the URL resolved but refused an unadorned GET. X answers 403 and
 # LinkedIn answers 999 for a request with no browser fingerprint, so neither is dead.
 REFUSED_STATUSES = {401, 403, 405, 429, 999}
+
+#: Without a cap, a 100-row database opens 100 concurrent runs and hits every
+#: linked site at once.
+BATCH_SIZE = 10
 
 
 class SkippedRowDTO(TypedDict):
@@ -88,7 +92,7 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
 
     # 2) Batched fan-out: health-check every link. tasks-http has no HEAD method, so
     #    this is a GET whose body we discard.
-    checks = await map_in_batches(web_urls, lambda url, _i: _check(ctx, url))
+    checks = await _map_in_batches(web_urls, lambda url: _check(ctx, url))
     dead_links = [
         f"{url} ({check['status'] if check else 'no response'})"
         for url, check in zip(web_urls, checks, strict=True)
@@ -133,6 +137,15 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
         dead_links,
     )
     return result
+
+
+async def _map_in_batches[T, R](items: list[T], fn: Callable[[T], Awaitable[R]]) -> list[R]:
+    """asyncio.gather in batches of BATCH_SIZE, in input order."""
+    results: list[R] = []
+    for start in range(0, len(items), BATCH_SIZE):
+        batch = items[start : start + BATCH_SIZE]
+        results.extend(await asyncio.gather(*(fn(item) for item in batch)))
+    return results
 
 
 async def _check(ctx: TaskContext, url: str) -> RequestResult | None:

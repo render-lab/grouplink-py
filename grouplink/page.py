@@ -175,7 +175,7 @@ _STYLES_HEAD = """
   --grid-margin: 24px;
   --ease: cubic-bezier(0.9, 0.1, 0.1, 0.9);
 
-  --font-default: 'PP Neue Montreal', 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --font-default: 'PP Neue Montreal', ui-sans-serif, system-ui, sans-serif;
 
   color-scheme: light dark;
 }
