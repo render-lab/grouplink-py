@@ -41,6 +41,7 @@ class LinkCard:
     #: `<origin>/favicon.ico`. The page does not show it.
     icon_url: str
     #: Which file under grouplink/assets/link-icons the card draws in its left column.
+    #: The names `one`, `two`, and `three` have no file. They draw a numbered box.
     icon: IconName
     #: The `Section` cell, which names the card's tab. Empty puts it in the Misc tab.
     section: str = ""
@@ -285,7 +286,7 @@ body {
 }
 
 /* The tagline. */
-.intro p {
+.intro__text {
   margin: 0;
   max-width: 36ch;
   color: var(--text-secondary);
@@ -442,8 +443,8 @@ _STYLES_TAIL = """
 .social:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
 /*
- * The icon files are solid white, so an <img> would vanish on the light
- * background. Each one is a mask instead, painted with the link color.
+ * The icon files are black glyphs used as CSS masks. They take the text
+ * color (currentColor), so they follow both color schemes.
  */
 .social__icon {
   display: block;

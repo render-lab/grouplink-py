@@ -181,7 +181,7 @@ class TestRenderPage:
 
     def test_omits_the_tagline_paragraph_when_the_tagline_is_empty(self) -> None:
         html = render_page(replace(MODEL, tagline=""), profile_slug="x")
-        assert "intro__text" not in html
+        assert 'class="intro__text"' not in html
 
     def test_shows_the_name_but_not_the_tagline_on_the_default_page(self) -> None:
         html = render_page(MODEL, profile_slug="x", is_default=True)
