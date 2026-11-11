@@ -1,6 +1,6 @@
 # grouplink
 
-Render's links page. A Render Workflow reads the links from Notion, scrapes each link's description, and writes the result to Key Value. A web service reads the result from Key Value and serves one HTML page per profile.
+Render's links page. A Render Workflow reads the links from Notion, scrapes each link's description, and writes the result to Key Value. A web service reads the result from Key Value and serves one HTML page per profile. Each card on the page shows the link's title. The page does not show the scraped description.
 
 ## Project structure
 
@@ -32,7 +32,7 @@ The links database has the following properties:
 | `Visible`  | checkbox | Unchecked rows are not shown                               |
 | `Everyone` | checkbox | Shows the link on every profile's page                     |
 | `Profiles` | relation | The profiles whose pages show the link                     |
-| `Icon`     | select   | A file name from `grouplink/assets/link-icons/`. Empty means `arrow`. |
+| `Icon`     | select   | A file name from `grouplink/assets/link-icons/`. `one`, `two`, and `three` draw a numbered box. Empty means `arrow`. |
 | `Order`    | number   | Card position, lowest first. Required.                     |
 | `Section`  | select   | The tab the link shows in. Empty means the Misc tab.       |
 
@@ -42,7 +42,7 @@ The profiles database has the following properties:
 | --------- | ----- | --------------------------------------- |
 | `Name`    | title | The heading on the profile's page       |
 | `Slug`    | text  | The URL path. `shifra` serves at `/shifra`. |
-| `Tagline` | text  | The page description in the metadata    |
+| `Tagline` | text  | The page description in the metadata. The page also shows it under the name, except on the default page. |
 
 The profile named by `SITE_DEFAULT_SLUG` is also served at `/`. The slugs `assets`, `healthz`, `links`, `tasks`, and `webhooks` are reserved.
 
