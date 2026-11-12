@@ -39,11 +39,11 @@ class RebuildConfig:
 FALSY = {"false", "0", "no", "off"}
 
 
-def env_flag(value: str | None, fallback: bool) -> bool:
+def env_flag(env: Mapping[str, str], name: str, fallback: bool) -> bool:
     """Case-insensitive, because DRY_RUN guards the site write. Reading `False` as
     true would publish a run the operator meant to hold.
     """
-    normalized = (value or "").strip().lower()
+    normalized = env.get(name, "").strip().lower()
     if normalized == "":
         return fallback
     return normalized not in FALSY
@@ -95,7 +95,7 @@ def load_config(
         database_id=database_id,
         profiles_database_id=profiles_database_id,
         limit=limit if limit is not None else env_int(environ, "LINKS_LIMIT", 100),
-        dry_run=env_flag(environ.get("DRY_RUN"), False) if dry_run is None else dry_run,
+        dry_run=env_flag(environ, "DRY_RUN", False) if dry_run is None else dry_run,
         default_slug=default_slug,
         site_url=environ.get("SITE_URL", ""),
     )
