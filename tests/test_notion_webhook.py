@@ -11,6 +11,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -106,6 +107,18 @@ class TestNotionWebhook:
 
         await s.settle()
         assert s.dispatch.calls == []
+
+    async def test_logs_the_token_only_while_the_secret_is_unset(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.INFO)
+
+        assert Setup().post({"verification_token": "ntn_test_token"}).status == 401
+        assert "ntn_test_token" not in caplog.text
+
+        # Show that the log capture works.
+        assert Setup(secret=None).post({"verification_token": "ntn_test_token"}).status == 200
+        assert "ntn_test_token" in caplog.text
 
     async def test_rejects_a_body_that_is_not_json(self) -> None:
         assert Setup(secret=None).raw_post("{").status == 400

@@ -107,6 +107,8 @@ Blueprints don't support Workflows yet, so you create the Workflow in the Dashbo
 4. Click **Verify** on the Webhooks tab and paste the token.
 5. Set the same token as `NOTION_WEBHOOK_SECRET` on the web service and redeploy. Until you do this, the web service rejects all Notion events with 401 and starts no rebuilds.
 
+The verification token stays in the web service's logs. If other people can read those logs, delete the subscription, remove `NOTION_WEBHOOK_SECRET`, and do these steps again.
+
 ### Public Notion connection
 
 1. Create the connection with the type **Public** and the redirect URI `https://<webhook-host>/oauth`. The web service has no route at that path, so the code stays in the address bar.
