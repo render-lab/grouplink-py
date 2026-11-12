@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 
 from grouplink.notion_webhook import NotionWebhook, WebhookRequest
-from tests.signing import sign
+from tests.helpers import sign
 
 SECRET = "verification-token"
 TASK = "grouplink.rebuild"
@@ -79,6 +79,7 @@ class TestNotionWebhook:
         assert s.dispatch.calls == []
 
         await s.dispatched()
+        await s.quiet()
         assert s.dispatch.calls == [(TASK, [{}])]
 
     async def test_rejects_a_wrong_signature_without_scheduling_anything(self) -> None:
@@ -107,7 +108,7 @@ class TestNotionWebhook:
         await s.quiet()
         assert s.dispatch.calls == []
 
-    async def test_logs_the_token_only_while_the_secret_is_unset(
+    async def test_logs_an_unsigned_token_only_while_the_secret_is_unset(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         caplog.set_level(logging.INFO)
@@ -143,13 +144,18 @@ class TestNotionWebhook:
         await s.quiet()
         assert len(s.dispatch.calls) == 1
 
-    async def test_a_failing_dispatch_does_not_take_the_receiver_down(self) -> None:
+    async def test_a_failing_dispatch_does_not_take_the_receiver_down(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         async def boom(task: str, args: list[Any]) -> dict[str, str]:
             raise RuntimeError("the Workflow service is down")
 
         s = Setup(dispatch=boom)
         assert s.signed_post(event("page.created")).status == 202
         await s.quiet()
+
+        assert "dispatch failed: the Workflow service is down" in caplog.text
+        assert s.signed_post(event("page.created")).status == 202
 
     async def test_flush_starts_the_waiting_run_without_the_quiet_period(self) -> None:
         s = Setup()
@@ -212,4 +218,5 @@ async def test_every_rebuild_event_schedules_a_run(type: str) -> None:
     s = Setup()
     assert s.signed_post(event(type)).status == 202
     await s.dispatched()
+    await s.quiet()
     assert len(s.dispatch.calls) == 1
