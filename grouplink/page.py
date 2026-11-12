@@ -488,7 +488,7 @@ if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
   document.querySelectorAll('a[data-gmail]').forEach(function (a) {
     a.href = a.dataset.gmail;
     a.target = '_blank';
-    a.rel = 'noopener';
+    a.rel = 'noreferrer';
     var note = document.createElement('span');
     note.className = 'visually-hidden';
     note.textContent = '(opens in a new tab)';

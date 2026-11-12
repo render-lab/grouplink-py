@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'sha256-HceIJMQx9+jv9P4/OwZ49j7Ef/rS6AOqjsFppVh4MmY='; script-src 'sha256-dJTrLNskSiwphPx9NrEpmUIW+WyPDtc8O3DG2UVu77Y='; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'sha256-HceIJMQx9+jv9P4/OwZ49j7Ef/rS6AOqjsFppVh4MmY='; script-src 'sha256-7S6kZiebtAc1U92DYEPa+0vbOzw00YsDrQVO57rmz+A='; font-src 'self'; base-uri 'none'; form-action 'none'">
 <title>Render Links</title>
 <meta name="description" content="The fastest path to production for full-stack applications and agents">
 <meta property="og:title" content="Shifra — links">
@@ -398,7 +398,7 @@ if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
   document.querySelectorAll('a[data-gmail]').forEach(function (a) {
     a.href = a.dataset.gmail;
     a.target = '_blank';
-    a.rel = 'noopener';
+    a.rel = 'noreferrer';
     var note = document.createElement('span');
     note.className = 'visually-hidden';
     note.textContent = '(opens in a new tab)';
