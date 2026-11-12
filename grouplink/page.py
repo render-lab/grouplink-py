@@ -364,6 +364,7 @@ body {
   font-weight: 500;
   letter-spacing: 0;
   text-align: center;
+  text-transform: capitalize;
   color: var(--text-faint);
   text-decoration: none;
 }
