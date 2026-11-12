@@ -291,7 +291,7 @@ def build_app() -> Starlette:
             dispatch=dispatcher.start,
             task=task,
             secret=os.environ.get("NOTION_WEBHOOK_SECRET"),
-            debounce_ms=env_int("DEBOUNCE_MS", os.environ.get("DEBOUNCE_MS"), DEFAULT_DEBOUNCE_MS),
+            debounce_ms=env_int(os.environ, "DEBOUNCE_MS", DEFAULT_DEBOUNCE_MS),
         ),
         store=SiteStore(read=read_site, rebuild=lambda: dispatcher.start(task, [{}])),
         on_shutdown=redis.aclose,
@@ -300,7 +300,7 @@ def build_app() -> Starlette:
 
 def main() -> None:
     configure_logging()
-    port = env_int("PORT", os.environ.get("PORT"), 3000)
+    port = env_int(os.environ, "PORT", 3000)
     log.info("grouplink-webhook-py listening on %s", port)
     uvicorn.run(build_app(), host="0.0.0.0", port=port)
 

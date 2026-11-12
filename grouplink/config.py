@@ -49,14 +49,14 @@ def env_flag(value: str | None, fallback: bool) -> bool:
     return normalized not in FALSY
 
 
-def env_int(name: str, value: str | None, fallback: int) -> int:
+def env_int(env: Mapping[str, str], name: str, fallback: int) -> int:
     """A whole number from the environment, or the fallback when the variable is unset.
 
     Anything else raises at startup, because `LINKS_LIMIT=-5` asks Notion for a
     negative page size and `DEBOUNCE_MS=10s` used to parse as 10 milliseconds.
     Shared with the webhook receiver, which reads its own DEBOUNCE_MS and PORT.
     """
-    raw = (value or "").strip()
+    raw = env.get(name, "").strip()
     if raw == "":
         return fallback
 
@@ -94,9 +94,7 @@ def load_config(
     return RebuildConfig(
         database_id=database_id,
         profiles_database_id=profiles_database_id,
-        limit=limit
-        if limit is not None
-        else env_int("LINKS_LIMIT", environ.get("LINKS_LIMIT"), 100),
+        limit=limit if limit is not None else env_int(environ, "LINKS_LIMIT", 100),
         dry_run=env_flag(environ.get("DRY_RUN"), False) if dry_run is None else dry_run,
         default_slug=default_slug,
         site_url=environ.get("SITE_URL", ""),

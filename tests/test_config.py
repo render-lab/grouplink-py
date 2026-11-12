@@ -61,13 +61,14 @@ class TestEnvInt:
     def test_falls_back_when_the_variable_is_unset_empty_or_whitespace(
         self, value: str | None
     ) -> None:
-        assert env_int("LINKS_LIMIT", value, 100) == 100
+        env = {} if value is None else {"LINKS_LIMIT": value}
+        assert env_int(env, "LINKS_LIMIT", 100) == 100
 
     @pytest.mark.parametrize("value", ["25", " 25 "])
     def test_reads_a_whole_number_with_or_without_surrounding_space(self, value: str) -> None:
-        assert env_int("LINKS_LIMIT", value, 100) == 25
+        assert env_int({"LINKS_LIMIT": value}, "LINKS_LIMIT", 100) == 25
 
     @pytest.mark.parametrize("value", ["-5", "0", "10abc", "1e3", "2.5", "+5", "abc", "١٢"])
     def test_rejects_anything_that_is_not_a_whole_number_of_1_or_more(self, value: str) -> None:
         with pytest.raises(ValueError, match="LINKS_LIMIT"):
-            env_int("LINKS_LIMIT", value, 100)
+            env_int({"LINKS_LIMIT": value}, "LINKS_LIMIT", 100)
