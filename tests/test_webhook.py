@@ -4,6 +4,8 @@ delegates to the render-lab-triggers DispatchServer.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 from typing import Any
 
@@ -28,18 +30,24 @@ async def no_site() -> str | None:
     return None
 
 
-@pytest.fixture
-def client() -> TestClient:
+def make_client(secret: str | None = None) -> TestClient:
     dispatcher = Dispatcher()
     return TestClient(
         create_app(
             workflow_slug="grouplink",
             dispatcher=dispatcher,
             rebuild_task="grouplink.rebuild",
-            webhook=NotionWebhook(dispatch=dispatcher.start, task="grouplink.rebuild"),
+            webhook=NotionWebhook(
+                dispatch=dispatcher.start, task="grouplink.rebuild", secret=secret
+            ),
             store=SiteStore(read=no_site, rebuild=lambda: dispatcher.start("x", [])),
         )
     )
+
+
+@pytest.fixture
+def client() -> TestClient:
+    return make_client()
 
 
 def test_answers_the_notion_route_itself(client: TestClient) -> None:
@@ -49,9 +57,12 @@ def test_answers_the_notion_route_itself(client: TestClient) -> None:
     assert response.json() == {"ok": True}
 
 
-def test_sends_no_body_with_a_204(client: TestClient) -> None:
+def test_sends_no_body_with_a_204() -> None:
     body = json.dumps({"type": "comment.created"})
-    response = client.post("/webhooks/notion", content=body)
+    signature = "sha256=" + hmac.new(b"s", body.encode(), hashlib.sha256).hexdigest()
+    response = make_client(secret="s").post(
+        "/webhooks/notion", content=body, headers={"X-Notion-Signature": signature}
+    )
     assert response.status_code == 204
     assert response.content == b""
 

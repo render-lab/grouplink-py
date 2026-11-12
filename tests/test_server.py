@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -61,7 +63,7 @@ class Dispatcher:
 
 
 class App:
-    def __init__(self, value: str | None) -> None:
+    def __init__(self, value: str | None, secret: str | None = None) -> None:
         self.kv = FakeKv(value)
         self.dispatcher = Dispatcher()
         store = SiteStore(
@@ -73,7 +75,9 @@ class App:
                 workflow_slug="grouplink",
                 dispatcher=self.dispatcher,
                 rebuild_task="grouplink.rebuild",
-                webhook=NotionWebhook(dispatch=self.dispatcher.start, task="grouplink.rebuild"),
+                webhook=NotionWebhook(
+                    dispatch=self.dispatcher.start, task="grouplink.rebuild", secret=secret
+                ),
                 store=store,
             )
         )
@@ -233,9 +237,13 @@ def test_answers_a_head_request(app: App) -> None:
 
 
 def test_starts_the_pending_rebuild_when_the_service_shuts_down() -> None:
-    app = App(snapshot())
+    app = App(snapshot(), secret="s")
+    body = json.dumps({"type": "page.created"})
+    signature = "sha256=" + hmac.new(b"s", body.encode(), hashlib.sha256).hexdigest()
     with app.client as client:
-        response = client.post("/webhooks/notion", json={"type": "page.created"})
+        response = client.post(
+            "/webhooks/notion", content=body, headers={"X-Notion-Signature": signature}
+        )
         assert response.status_code == 202
         assert app.dispatcher.calls == []
 

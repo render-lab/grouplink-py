@@ -105,7 +105,7 @@ Blueprints don't support Workflows yet, so you create the Workflow in the Dashbo
 2. Subscribe to `page.created`, `page.deleted`, `page.undeleted`, `page.properties_updated`, `page.content_updated`, `data_source.content_updated`, and `data_source.schema_updated`.
 3. Notion sends a verification token to the web service. Find `notion verification_token: ntn_...` in the web service's logs.
 4. Click **Verify** on the Webhooks tab and paste the token.
-5. Set the same token as `NOTION_WEBHOOK_SECRET` on the web service and redeploy.
+5. Set the same token as `NOTION_WEBHOOK_SECRET` on the web service and redeploy. Until you do this, the web service rejects all Notion events with 401 and starts no rebuilds.
 
 ### Public Notion connection
 

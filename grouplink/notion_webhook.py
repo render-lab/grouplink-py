@@ -147,7 +147,7 @@ class NotionWebhook:
     def handle(self, request: WebhookRequest) -> WebhookResponse:
         # Creating a subscription makes Notion POST the verification token once, with
         # no signature and before there is a secret to check it against. So an
-        # unsigned body is accepted while the secret is unset, and never after.
+        # unsigned handshake is accepted while the secret is unset, and never after.
         if self._secret and not verify_signature(
             request.raw_body, request.headers.get("x-notion-signature"), self._secret
         ):
@@ -162,6 +162,11 @@ class NotionWebhook:
         if token:
             log.info("notion verification_token: %s", token)
             return WebhookResponse(200, {"ok": True})
+
+        # Before the secret is set, there is no way to know that an event is from
+        # Notion. Accept only the handshake.
+        if not self._secret:
+            return WebhookResponse(401, {"error": "webhook secret is not set"})
 
         if _string_field(body, "type") not in REBUILD_EVENTS:
             return WebhookResponse(204)

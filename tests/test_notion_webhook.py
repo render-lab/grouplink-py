@@ -98,6 +98,15 @@ class TestNotionWebhook:
         assert Setup(secret=None).post(handshake).status == 200
         assert Setup().post(handshake).status == 401
 
+    async def test_rejects_an_event_while_the_secret_is_unset(self) -> None:
+        s = Setup(secret=None)
+
+        response = s.post(event("page.created"))
+        assert (response.status, response.body) == (401, {"error": "webhook secret is not set"})
+
+        await s.settle()
+        assert s.dispatch.calls == []
+
     async def test_rejects_a_body_that_is_not_json(self) -> None:
         assert Setup(secret=None).raw_post("{").status == 400
 
@@ -187,7 +196,7 @@ class TestNotionWebhook:
     ],
 )
 async def test_every_rebuild_event_schedules_a_run(type: str) -> None:
-    s = Setup(secret=None)
-    assert s.post(event(type)).status == 202
+    s = Setup()
+    assert s.signed_post(event(type)).status == 202
     await s.settle()
     assert len(s.dispatch.calls) == 1
