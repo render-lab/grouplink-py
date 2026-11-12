@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Any, TypedDict
+from typing import TypedDict
 
 from render import TaskContext
 from render.client.errors import TaskRunError
@@ -26,25 +26,23 @@ from grouplink.app import app
 from grouplink.config import RebuildInput, load_config
 from grouplink.icons import DEFAULT_ICON
 from grouplink.links import (
-    ProfilePage,
     ProfileRow,
     SkippedRow,
     fetchable_urls,
     skipped_rows,
-    to_card,
+    to_page_model,
     unique_urls,
     unknown_icons,
     unservable_profiles,
 )
-from grouplink.page import PageModel
 from grouplink.read_notion import read_notion_site
 from grouplink.snapshot import SITE_KEY, build_snapshot, parse_snapshot
 
 log = logging.getLogger(__name__)
 
 
-# Statuses that mean the URL resolved but refused an unadorned GET. X answers 403 and
-# LinkedIn answers 999 for a request with no browser fingerprint, so neither is dead.
+#: Statuses that mean the URL resolved but refused an unadorned GET. X answers 403 and
+#: LinkedIn answers 999 for a request with no browser fingerprint, so neither is dead.
 REFUSED_STATUSES = {401, 403, 405, 429, 999}
 
 #: Without a cap, a 100-row database opens 100 concurrent runs and hits every
@@ -76,9 +74,9 @@ class RebuildResult(TypedDict):
 
 @app.task(name="grouplink.rebuild")
 async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> RebuildResult:
-    cfg = load_config(input or {})
+    cfg = load_config(input)
 
-    # 1) Parallel fan-out: read both databases.
+    # 1) Parallel fan-out: read both databases and the Section options.
     site = await read_notion_site(ctx, cfg)
     pages = site.pages
 
@@ -101,7 +99,7 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
 
     # 3) Build the snapshot the web service serves: every profile's page model and
     #    the slug the root page shows.
-    models = {page.profile.slug: _to_model(page) for page in pages}
+    models = {page.profile.slug: to_page_model(page) for page in pages}
     snapshot = build_snapshot(models, cfg.default_slug, datetime.now(UTC))
     snapshot_hash = parse_snapshot(snapshot).hash
 
@@ -173,8 +171,8 @@ def _report_notion_problems(
     return skipped
 
 
-def _unreachable(check: Mapping[str, Any] | None) -> bool:
-    if not check:
+def _unreachable(check: RequestResult | None) -> bool:
+    if check is None:
         return True
     return not check["ok"] and int(check["status"]) not in REFUSED_STATUSES
 
@@ -191,14 +189,6 @@ def _snapshot_hash(value: str | None) -> str | None:
 
 def _to_skipped_dto(row: SkippedRow) -> SkippedRowDTO:
     return {"title": row.title, "url": row.url, "reason": row.reason}
-
-
-def _to_model(page: ProfilePage) -> PageModel:
-    return PageModel(
-        name=page.profile.name,
-        tagline=page.profile.tagline,
-        cards=[to_card(row) for row in page.rows],
-    )
 
 
 def _log_outcome(text: str, dead_links: list[str]) -> None:

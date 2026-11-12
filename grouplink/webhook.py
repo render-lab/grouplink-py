@@ -17,6 +17,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import uvicorn
 from redis.asyncio import Redis
 from render_lab_triggers import create_dispatch_server, render_dispatcher
 from render_lab_triggers.types import WorkflowDispatcher
@@ -278,8 +279,6 @@ def build_app() -> Starlette:
 
 
 def main() -> None:
-    import uvicorn
-
     configure_logging()
     port = env_int("PORT", os.environ.get("PORT"), 3000)
     log.info("grouplink-webhook-py listening on %s", port)

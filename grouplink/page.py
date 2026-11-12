@@ -591,7 +591,7 @@ def _render_card(card: LinkCard) -> str:
           </a>"""
 
 
-# Where the logo links.
+#: Where the logo links.
 LOGO_HREF = "https://render.com/"
 
 #: Link previews need an absolute URL, so this is the render.com path of

@@ -193,11 +193,9 @@ def parse(value: str) -> ParsedUrl | None:
     raw = _clean(value)
 
     scheme, colon, rest = raw.partition(":")
-    if not colon or not scheme:
+    if not colon:
         return None
     scheme = scheme.lower()
-    if not scheme[0].isalpha() or not all(c.isalnum() or c in "+-." for c in scheme):
-        return None
     if scheme not in SPECIAL_PORTS:
         return None
 

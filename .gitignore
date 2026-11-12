@@ -6,6 +6,7 @@ __pycache__/
 *.log
 .DS_Store
 tmp/
+dump.rdb
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/

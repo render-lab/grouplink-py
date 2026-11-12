@@ -11,7 +11,7 @@ from render_lab_tasks_notion.types import PageDTO, PropertyValue
 from grouplink.icons import DEFAULT_ICON, IconName, is_icon_name
 from grouplink.jsurl import is_http_url, is_mailto_url, normalize_url
 from grouplink.jsurl import parse as parse_url
-from grouplink.page import MISC_SLUG, LinkCard, section_slug, tab_slug
+from grouplink.page import MISC_SLUG, LinkCard, PageModel, section_slug, tab_slug
 
 
 @dataclass(frozen=True)
@@ -350,3 +350,12 @@ def to_card(row: CardSource) -> LinkCard:
     too.
     """
     return LinkCard(title=row.title, url=row.url, icon=row.icon, section=row.section)
+
+
+def to_page_model(page: ProfilePage) -> PageModel:
+    """The page model the web service renders for one profile."""
+    return PageModel(
+        name=page.profile.name,
+        tagline=page.profile.tagline,
+        cards=[to_card(row) for row in page.rows],
+    )

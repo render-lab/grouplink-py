@@ -15,8 +15,7 @@ from render_lab_test_utils import local_ctx
 
 import grouplink.notion_relation  # noqa: F401  (imported for its side effect)
 from grouplink.config import load_config
-from grouplink.links import to_card
-from grouplink.page import PageModel
+from grouplink.links import to_page_model
 from grouplink.read_notion import read_notion_site
 from scripts.local_site import REPO_ROOT, write_snapshot
 
@@ -27,17 +26,7 @@ async def main() -> None:
     cfg = load_config({"dryRun": True})
 
     pages = (await read_notion_site(ctx, cfg)).pages
-    write_snapshot(
-        {
-            page.profile.slug: PageModel(
-                name=page.profile.name,
-                tagline=page.profile.tagline,
-                cards=[to_card(row) for row in page.rows],
-            )
-            for page in pages
-        },
-        cfg.default_slug,
-    )
+    write_snapshot({page.profile.slug: to_page_model(page) for page in pages}, cfg.default_slug)
 
 
 if __name__ == "__main__":
