@@ -264,7 +264,7 @@ def _slug_problem(slug: str) -> str:
     return ""
 
 
-def _split_profiles(profiles: list[ProfileRow]) -> tuple[list[ProfileRow], list[SkippedRow]]:
+def split_profiles(profiles: list[ProfileRow]) -> tuple[list[ProfileRow], list[SkippedRow]]:
     """The profiles that get a page, and a skipped row for each other profile. The
     first profile with a slug gets it.
     """
@@ -281,16 +281,6 @@ def _split_profiles(profiles: list[ProfileRow]) -> tuple[list[ProfileRow], list[
             taken.add(profile.slug)
             servable.append(profile)
     return servable, skipped
-
-
-def servable_profiles(profiles: list[ProfileRow]) -> list[ProfileRow]:
-    """The profiles the web service serves as a page, one per slug."""
-    return _split_profiles(profiles)[0]
-
-
-def unservable_profiles(profiles: list[ProfileRow]) -> list[SkippedRow]:
-    """Why each other profile gets no page. Reported with the skipped rows."""
-    return _split_profiles(profiles)[1]
 
 
 def group_by_profile(

@@ -18,7 +18,6 @@ from render import TaskContext
 from render.client.errors import TaskRunError
 from render_lab_tasks_http.request import request
 from render_lab_tasks_http.types import RequestResult
-from render_lab_tasks_notion.types import PageDTO
 from render_lab_tasks_render_kv.get import get as kv_get
 from render_lab_tasks_render_kv.set import set as kv_set
 
@@ -26,16 +25,14 @@ from grouplink.app import app
 from grouplink.config import RebuildInput, load_config
 from grouplink.icons import DEFAULT_ICON
 from grouplink.links import (
-    ProfileRow,
     SkippedRow,
     fetchable_urls,
     skipped_rows,
     to_page_model,
     unique_urls,
     unknown_icons,
-    unservable_profiles,
 )
-from grouplink.read_notion import read_notion_site
+from grouplink.read_notion import NotionSite, read_notion_site
 from grouplink.snapshot import SITE_KEY, build_snapshot, parse_snapshot
 
 log = logging.getLogger(__name__)
@@ -80,7 +77,7 @@ async def rebuild(ctx: TaskContext, input: RebuildInput | None = None) -> Rebuil
     site = await read_notion_site(ctx, cfg)
     pages = site.pages
 
-    skipped = _report_notion_problems(site.link_pages, site.profiles)
+    skipped = _report_notion_problems(site)
 
     # A link on three pages is one URL to health-check. A mailto: card renders from
     # its Notion row alone, so it is a card URL but not a web URL and skips stage 2.
@@ -156,17 +153,15 @@ async def _check(ctx: TaskContext, url: str) -> RequestResult | None:
         return None
 
 
-def _report_notion_problems(
-    link_pages: list[PageDTO], profiles: list[ProfileRow]
-) -> list[SkippedRow]:
+def _report_notion_problems(site: NotionSite) -> list[SkippedRow]:
     """Logs what you can see in Notion but the site does not show: a row that
     reaches no page, and an Icon option no file matches. Both are otherwise silent.
     Returns the skipped rows, which the run reports as part of its result.
     """
-    skipped = skipped_rows(link_pages, profiles) + unservable_profiles(profiles)
+    skipped = skipped_rows(site.link_pages, site.profiles) + site.unservable
     for row in skipped:
         log.info('skipped "%s": %s', row.title, row.reason)
-    for name in unknown_icons(link_pages):
+    for name in unknown_icons(site.link_pages):
         log.info('unknown Icon "%s", using %s', name, DEFAULT_ICON)
     return skipped
 

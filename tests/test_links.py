@@ -11,15 +11,14 @@ from grouplink.links import (
     group_by_profile,
     page_order,
     section_ranks,
-    servable_profiles,
     skipped_rows,
+    split_profiles,
     to_card,
     to_icon_name,
     to_link_rows,
     to_profile_rows,
     unique_urls,
     unknown_icons,
-    unservable_profiles,
     visible_rows,
 )
 
@@ -324,7 +323,7 @@ class TestAssertDefaultSlug:
             assert_default_slug(to_profile_rows(PROFILES), "assets")
 
 
-class TestServableProfiles:
+class TestSplitProfiles:
     MIXED = to_profile_rows(
         [
             *PROFILES,
@@ -335,13 +334,12 @@ class TestServableProfiles:
     )
 
     def test_keeps_the_first_profile_with_each_servable_slug(self) -> None:
-        assert [p.id for p in servable_profiles(self.MIXED)] == [
-            "profile-shifra",
-            "profile-alex",
-        ]
+        servable, _ = split_profiles(self.MIXED)
+        assert [p.id for p in servable] == ["profile-shifra", "profile-alex"]
 
     def test_names_why_each_other_profile_gets_no_page(self) -> None:
-        assert [(row.title, row.reason) for row in unservable_profiles(self.MIXED)] == [
+        _, skipped = split_profiles(self.MIXED)
+        assert [(row.title, row.reason) for row in skipped] == [
             ("Tasks", 'Slug "tasks" is reserved for the web service'),
             ("Slash", 'Slug "a/b" contains "/"'),
             ("Second Shifra", 'Slug "shifra" is already used by another profile'),

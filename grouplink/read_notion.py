@@ -17,10 +17,11 @@ from grouplink.links import (
     LINK_SORTS,
     ProfilePage,
     ProfileRow,
+    SkippedRow,
     assert_default_slug,
     group_by_profile,
     section_ranks,
-    servable_profiles,
+    split_profiles,
     to_link_rows,
     to_profile_rows,
     visible_rows,
@@ -34,7 +35,11 @@ class NotionSite:
 
     #: The raw link rows, which the skip report reads.
     link_pages: list[PageDTO]
+    #: Every profile row, so the skip report can tell an unknown profile from one
+    #: that gets no page.
     profiles: list[ProfileRow]
+    #: Why each profile that gets no page is skipped.
+    unservable: list[SkippedRow]
     #: One page per profile whose slug the web service can serve. Each page holds
     #: its visible rows, in `page_order`.
     pages: list[ProfilePage]
@@ -57,10 +62,10 @@ async def read_notion_site(ctx: TaskContext, cfg: RebuildConfig) -> NotionSite:
     )
 
     profiles = to_profile_rows(profile_pages)
-    servable = servable_profiles(profiles)
+    servable, unservable = split_profiles(profiles)
     assert_default_slug(servable, cfg.default_slug)
     pages = group_by_profile(
         visible_rows(to_link_rows(link_pages)), servable, section_ranks(section_options)
     )
 
-    return NotionSite(link_pages=link_pages, profiles=profiles, pages=pages)
+    return NotionSite(link_pages=link_pages, profiles=profiles, unservable=unservable, pages=pages)
