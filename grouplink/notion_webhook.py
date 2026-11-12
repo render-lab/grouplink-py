@@ -135,15 +135,6 @@ class NotionWebhook:
             pending.cancel()
             await self._dispatch_now()
 
-    async def drain(self) -> None:
-        """Await the pending dispatch, if there is one. For tests."""
-        pending = self._pending
-        if pending is not None:
-            try:
-                await pending
-            except asyncio.CancelledError:
-                pass
-
     def handle(self, request: WebhookRequest) -> WebhookResponse:
         # Creating a subscription makes Notion POST the verification token once, with
         # no signature and before there is a secret to check it against. So an

@@ -35,9 +35,11 @@ def event(type: str) -> dict[str, Any]:
 class Recorder:
     def __init__(self) -> None:
         self.calls: list[tuple[str, list[Any]]] = []
+        self.called = asyncio.Event()
 
     async def __call__(self, task: str, args: list[Any]) -> dict[str, str]:
         self.calls.append((task, args))
+        self.called.set()
         return {"runId": "run-1"}
 
 
@@ -65,10 +67,13 @@ class Setup:
         raw_body = json.dumps(body)
         return self.raw_post(raw_body, {"x-notion-signature": sign(raw_body)})
 
-    async def settle(self) -> None:
-        """Let the debounce window pass, plus enough slack for the dispatch."""
+    async def dispatched(self) -> None:
+        """Wait until the fake dispatch is called."""
+        await asyncio.wait_for(self.dispatch.called.wait(), timeout=1)
+
+    async def quiet(self) -> None:
+        """Let three debounce windows pass, for a test that expects no dispatch."""
         await asyncio.sleep(DEBOUNCE_MS / 1000 * 3)
-        await self.webhook.drain()
 
 
 class TestNotionWebhook:
@@ -79,7 +84,7 @@ class TestNotionWebhook:
         assert (response.status, response.body) == (202, {"scheduled": True})
         assert s.dispatch.calls == []
 
-        await s.settle()
+        await s.dispatched()
         assert s.dispatch.calls == [(TASK, [{}])]
 
     async def test_rejects_a_wrong_signature_without_scheduling_anything(self) -> None:
@@ -90,7 +95,7 @@ class TestNotionWebhook:
         assert s.post(body, wrong).status == 401
         assert s.post(body).status == 401
 
-        await s.settle()
+        await s.quiet()
         assert s.dispatch.calls == []
 
     async def test_accepts_the_unsigned_handshake_only_while_the_secret_is_unset(self) -> None:
@@ -105,7 +110,7 @@ class TestNotionWebhook:
         response = s.post(event("page.created"))
         assert (response.status, response.body) == (401, {"error": "webhook secret is not set"})
 
-        await s.settle()
+        await s.quiet()
         assert s.dispatch.calls == []
 
     async def test_logs_the_token_only_while_the_secret_is_unset(
@@ -129,7 +134,7 @@ class TestNotionWebhook:
         response = s.signed_post(event("comment.created"))
         assert (response.status, response.body) == (204, None)
 
-        await s.settle()
+        await s.quiet()
         assert s.dispatch.calls == []
 
     async def test_collapses_a_burst_of_edits_into_one_run(self) -> None:
@@ -140,7 +145,8 @@ class TestNotionWebhook:
             await asyncio.sleep(DEBOUNCE_MS / 1000 / 2)
         assert s.dispatch.calls == []
 
-        await s.settle()
+        await s.dispatched()
+        await s.quiet()
         assert len(s.dispatch.calls) == 1
 
     async def test_a_failing_dispatch_does_not_take_the_receiver_down(self) -> None:
@@ -149,7 +155,7 @@ class TestNotionWebhook:
 
         s = Setup(dispatch=boom)
         assert s.signed_post(event("page.created")).status == 202
-        await s.settle()
+        await s.quiet()
 
     async def test_flush_starts_the_waiting_run_without_the_quiet_period(self) -> None:
         s = Setup()
@@ -159,7 +165,7 @@ class TestNotionWebhook:
         assert s.dispatch.calls == [(TASK, [{}])]
 
         # The cancelled timer must not start a second run.
-        await s.settle()
+        await s.quiet()
         assert s.dispatch.calls == [(TASK, [{}])]
 
     async def test_flush_does_nothing_when_no_run_is_waiting(self) -> None:
@@ -168,7 +174,7 @@ class TestNotionWebhook:
         assert s.dispatch.calls == []
 
         s.signed_post(event("page.created"))
-        await s.settle()
+        await s.dispatched()
         await s.webhook.flush()
         assert len(s.dispatch.calls) == 1
 
@@ -211,5 +217,5 @@ class TestNotionWebhook:
 async def test_every_rebuild_event_schedules_a_run(type: str) -> None:
     s = Setup()
     assert s.signed_post(event(type)).status == 202
-    await s.settle()
+    await s.dispatched()
     assert len(s.dispatch.calls) == 1
