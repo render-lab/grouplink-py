@@ -99,6 +99,11 @@ class NotionWebhook:
         #: The dispatch that left the quiet period and has not returned yet.
         self._dispatching: asyncio.Task[None] | None = None
 
+    @property
+    def task(self) -> str:
+        """The Workflow task that each run starts."""
+        return self._task
+
     def _schedule(self) -> None:
         if self._pending is not None:
             self._pending.cancel()

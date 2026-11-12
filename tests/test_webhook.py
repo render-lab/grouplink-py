@@ -13,16 +13,7 @@ from starlette.testclient import TestClient
 from grouplink.notion_webhook import NotionWebhook
 from grouplink.site_store import SiteStore
 from grouplink.webhook import MAX_BODY_BYTES, build_app, create_app
-from tests.signing import sign
-
-
-class Dispatcher:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, list[Any]]] = []
-
-    async def start(self, task: str, args: list[Any]) -> dict[str, str]:
-        self.calls.append((task, args))
-        return {"runId": "run-1"}
+from tests.helpers import Dispatcher, sign
 
 
 async def no_site() -> str | None:
@@ -35,7 +26,6 @@ def make_client(secret: str | None = None) -> TestClient:
         create_app(
             workflow_slug="grouplink",
             dispatcher=dispatcher,
-            rebuild_task="grouplink.rebuild",
             webhook=NotionWebhook(
                 dispatch=dispatcher.start, task="grouplink.rebuild", secret=secret
             ),
@@ -91,3 +81,30 @@ def test_build_app_names_the_variables_it_needs(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("WORKFLOW_SLUG", "grouplink")
     with pytest.raises(ValueError, match="REDIS_URL"):
         build_app()
+
+
+def test_answers_a_failed_dispatch_without_the_error_text(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    class FailingDispatcher(Dispatcher):
+        async def start(self, task: str, args: list[Any]) -> dict[str, str]:
+            raise RuntimeError("Render API said: internal detail")
+
+    monkeypatch.setenv("DISPATCH_TOKEN", "x")
+    dispatcher = FailingDispatcher()
+    client = TestClient(
+        create_app(
+            workflow_slug="grouplink",
+            dispatcher=dispatcher,
+            webhook=NotionWebhook(dispatch=dispatcher.start, task="grouplink.rebuild"),
+            store=SiteStore(read=no_site, rebuild=lambda: dispatcher.start("x", [])),
+        )
+    )
+
+    response = client.post(
+        "/tasks/grouplink.rebuild", content="[]", headers={"Authorization": "Bearer x"}
+    )
+
+    assert response.status_code == 502
+    assert "internal detail" not in response.text
+    assert "internal detail" in caplog.text

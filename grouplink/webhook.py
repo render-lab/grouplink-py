@@ -16,11 +16,12 @@ import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import cast
 
 import uvicorn
 from redis.asyncio import Redis
 from render_lab_triggers import create_dispatch_server, render_dispatcher
-from render_lab_triggers.types import WorkflowDispatcher
+from render_lab_triggers.types import Json, RunOutcome, StartedRun, WorkflowDispatcher
 from starlette.applications import Starlette
 from starlette.datastructures import MutableHeaders
 from starlette.middleware import Middleware
@@ -116,6 +117,31 @@ class ResponseHeaders:
         await self._app(scope, receive, send_with_headers)
 
 
+class RedactedDispatcher:
+    """Log a dispatch error, and give the dispatch server a general error in its place.
+
+    The dispatch server puts the error text in its 502 response. That text can hold a
+    Render API error body, so the caller gets only a general message.
+    """
+
+    def __init__(self, dispatcher: WorkflowDispatcher) -> None:
+        self._dispatcher = dispatcher
+
+    async def start(self, task: str, args: list[Json]) -> StartedRun:
+        try:
+            return await self._dispatcher.start(task, args)
+        except Exception as error:
+            log.exception("dispatch of %s failed", task)
+            raise RuntimeError("see the web service log") from error
+
+    async def run(self, task: str, args: list[Json], timeout_ms: float) -> RunOutcome:
+        try:
+            return await self._dispatcher.run(task, args, timeout_ms)
+        except Exception as error:
+            log.exception("dispatch of %s failed", task)
+            raise RuntimeError("see the web service log") from error
+
+
 class OnlyTask:
     """Pass a POST /tasks/:task request to the dispatch server only for one task.
 
@@ -123,7 +149,7 @@ class OnlyTask:
     task. The dispatch server starts any of them, so this route answers 404 for the rest.
     """
 
-    def __init__(self, task: str, app: Callable[..., Awaitable[None]]) -> None:
+    def __init__(self, task: str, app: ASGIApp) -> None:
         self._task = task
         self._app = app
 
@@ -138,7 +164,6 @@ def create_app(
     *,
     workflow_slug: str,
     dispatcher: WorkflowDispatcher,
-    rebuild_task: str,
     webhook: NotionWebhook,
     store: SiteStore,
     on_shutdown: Callable[[], Awaitable[None]] | None = None,
@@ -147,7 +172,14 @@ def create_app(
     rebuild or run a dry run with custom input from the command line. Passing the
     dispatcher in means every route starts runs through the same client.
     """
-    dispatch_server = create_dispatch_server(workflow_slug=workflow_slug, dispatcher=dispatcher)
+    # The library types the ASGI scope as `dict`, so mypy does not accept the server as
+    # an ASGIApp. The server works with any ASGI scope.
+    dispatch_server = cast(
+        ASGIApp,
+        create_dispatch_server(
+            workflow_slug=workflow_slug, dispatcher=RedactedDispatcher(dispatcher)
+        ),
+    )
 
     async def page(request: Request) -> Response:
         # Slugs and section slugs are lowercase, so /Shifra/AI-Agents goes to
@@ -211,7 +243,7 @@ def create_app(
         routes=[
             Route("/", page, methods=["GET"]),
             Route("/healthz", healthz, methods=["GET"]),
-            Route("/tasks/{task}", OnlyTask(rebuild_task, dispatch_server), methods=["POST"]),
+            Route("/tasks/{task}", OnlyTask(webhook.task, dispatch_server), methods=["POST"]),
             Route("/webhooks/notion", notion, methods=["POST"]),
             *(Mount(path, StaticFiles(directory=ASSETS_DIR)) for path in ASSET_PATHS),
             # `links` is a reserved slug, so no profile can shadow the /links routes.
@@ -286,7 +318,6 @@ def build_app() -> Starlette:
     return create_app(
         workflow_slug=workflow_slug,
         dispatcher=dispatcher,
-        rebuild_task=task,
         webhook=NotionWebhook(
             dispatch=dispatcher.start,
             task=task,

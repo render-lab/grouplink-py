@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
-from typing import Any
 
 import pytest
 from starlette.testclient import TestClient
@@ -15,7 +14,7 @@ from grouplink.page import LinkCard, PageModel, render_page
 from grouplink.site_store import REBUILD_RETRY_SECONDS, SiteStore
 from grouplink.snapshot import build_snapshot
 from grouplink.webhook import create_app
-from tests.signing import sign
+from tests.helpers import Dispatcher, sign
 
 SHIFRA = PageModel(
     name="Shifra Williams",
@@ -52,15 +51,6 @@ class FakeKv:
         return self.value
 
 
-class Dispatcher:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, list[Any]]] = []
-
-    async def start(self, task: str, args: list[Any]) -> dict[str, str]:
-        self.calls.append((task, args))
-        return {"runId": "run-1"}
-
-
 class App:
     def __init__(self, value: str | None, secret: str | None = None) -> None:
         self.kv = FakeKv(value)
@@ -73,7 +63,6 @@ class App:
             create_app(
                 workflow_slug="grouplink",
                 dispatcher=self.dispatcher,
-                rebuild_task="grouplink.rebuild",
                 webhook=NotionWebhook(
                     dispatch=self.dispatcher.start, task="grouplink.rebuild", secret=secret
                 ),
