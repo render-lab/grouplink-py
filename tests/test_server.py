@@ -72,6 +72,7 @@ class App:
             create_app(
                 workflow_slug="grouplink",
                 dispatcher=self.dispatcher,
+                rebuild_task="grouplink.rebuild",
                 webhook=NotionWebhook(dispatch=self.dispatcher.start, task="grouplink.rebuild"),
                 store=store,
             )
@@ -105,6 +106,27 @@ def test_answers_an_unknown_slug_with_a_404_page(app: App) -> None:
 def test_answers_a_reserved_slug_with_a_404_page(app: App) -> None:
     for path in ("/tasks", "/webhooks", "/webhooks/notion", "/tasks/x", "/assets", "/links/assets"):
         assert app.client.get(path).status_code == 404, path
+
+
+def test_answers_any_other_task_with_a_404(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DISPATCH_TOKEN", "x")
+    app = App(snapshot())
+    response = app.client.post(
+        "/tasks/render-kv.set", content="[]", headers={"Authorization": "Bearer x"}
+    )
+    assert response.status_code == 404
+    assert response.json() == {"error": "not found"}
+    assert app.dispatcher.calls == []
+
+
+def test_dispatches_the_rebuild_task(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DISPATCH_TOKEN", "x")
+    app = App(snapshot())
+    response = app.client.post(
+        "/tasks/grouplink.rebuild", content="[]", headers={"Authorization": "Bearer x"}
+    )
+    assert response.status_code == 202
+    assert app.dispatcher.calls == [("grouplink.rebuild", [])]
 
 
 def test_reads_key_value_on_each_request(app: App) -> None:

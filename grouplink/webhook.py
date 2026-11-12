@@ -116,10 +116,29 @@ class ResponseHeaders:
         await self._app(scope, receive, send_with_headers)
 
 
+class OnlyTask:
+    """Pass a POST /tasks/:task request to the dispatch server only for one task.
+
+    The Workflow registers more tasks than the rebuild, such as the Key Value `set`
+    task. The dispatch server starts any of them, so this route answers 404 for the rest.
+    """
+
+    def __init__(self, task: str, app: Callable[..., Awaitable[None]]) -> None:
+        self._task = task
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["path_params"]["task"] != self._task:
+            await JSONResponse({"error": "not found"}, status_code=404)(scope, receive, send)
+            return
+        await self._app(scope, receive, send)
+
+
 def create_app(
     *,
     workflow_slug: str,
     dispatcher: WorkflowDispatcher,
+    rebuild_task: str,
     webhook: NotionWebhook,
     store: SiteStore,
     on_shutdown: Callable[[], Awaitable[None]] | None = None,
@@ -192,7 +211,7 @@ def create_app(
         routes=[
             Route("/", page, methods=["GET"]),
             Route("/healthz", healthz, methods=["GET"]),
-            Route("/tasks/{task}", dispatch_server, methods=["POST"]),
+            Route("/tasks/{task}", OnlyTask(rebuild_task, dispatch_server), methods=["POST"]),
             Route("/webhooks/notion", notion, methods=["POST"]),
             *(Mount(path, StaticFiles(directory=ASSETS_DIR)) for path in ASSET_PATHS),
             # `links` is a reserved slug, so no profile can shadow the /links routes.
@@ -267,6 +286,7 @@ def build_app() -> Starlette:
     return create_app(
         workflow_slug=workflow_slug,
         dispatcher=dispatcher,
+        rebuild_task=task,
         webhook=NotionWebhook(
             dispatch=dispatcher.start,
             task=task,

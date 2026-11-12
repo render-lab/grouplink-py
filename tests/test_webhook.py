@@ -35,6 +35,7 @@ def client() -> TestClient:
         create_app(
             workflow_slug="grouplink",
             dispatcher=dispatcher,
+            rebuild_task="grouplink.rebuild",
             webhook=NotionWebhook(dispatch=dispatcher.start, task="grouplink.rebuild"),
             store=SiteStore(read=no_site, rebuild=lambda: dispatcher.start("x", [])),
         )
