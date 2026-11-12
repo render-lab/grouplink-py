@@ -4,8 +4,6 @@ delegates to the render-lab-triggers DispatchServer.
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 from typing import Any
 
@@ -15,6 +13,7 @@ from starlette.testclient import TestClient
 from grouplink.notion_webhook import NotionWebhook
 from grouplink.site_store import SiteStore
 from grouplink.webhook import MAX_BODY_BYTES, build_app, create_app
+from tests.signing import sign
 
 
 class Dispatcher:
@@ -59,7 +58,7 @@ def test_answers_the_notion_route_itself(client: TestClient) -> None:
 
 def test_sends_no_body_with_a_204() -> None:
     body = json.dumps({"type": "comment.created"})
-    signature = "sha256=" + hmac.new(b"s", body.encode(), hashlib.sha256).hexdigest()
+    signature = sign(body, "s")
     response = make_client(secret="s").post(
         "/webhooks/notion", content=body, headers={"X-Notion-Signature": signature}
     )

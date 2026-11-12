@@ -8,8 +8,6 @@ milliseconds instead of minutes.
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import hmac
 import json
 import logging
 from typing import Any
@@ -17,15 +15,11 @@ from typing import Any
 import pytest
 
 from grouplink.notion_webhook import NotionWebhook, WebhookRequest
+from tests.signing import sign
 
 SECRET = "verification-token"
 TASK = "grouplink.rebuild"
 DEBOUNCE_MS = 40
-
-
-def sign(raw_body: str, secret: str = SECRET) -> str:
-    digest = hmac.new(secret.encode(), raw_body.encode(), hashlib.sha256).hexdigest()
-    return f"sha256={digest}"
 
 
 def event(type: str) -> dict[str, Any]:
@@ -65,7 +59,7 @@ class Setup:
 
     def signed_post(self, body: Any) -> Any:
         raw_body = json.dumps(body)
-        return self.raw_post(raw_body, {"x-notion-signature": sign(raw_body)})
+        return self.raw_post(raw_body, {"x-notion-signature": sign(raw_body, SECRET)})
 
     async def dispatched(self) -> None:
         """Wait until the fake dispatch is called."""

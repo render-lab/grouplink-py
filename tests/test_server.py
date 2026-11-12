@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import hmac
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -17,6 +15,7 @@ from grouplink.page import LinkCard, PageModel, render_page
 from grouplink.site_store import REBUILD_RETRY_SECONDS, SiteStore
 from grouplink.snapshot import build_snapshot
 from grouplink.webhook import create_app
+from tests.signing import sign
 
 SHIFRA = PageModel(
     name="Shifra Williams",
@@ -239,7 +238,7 @@ def test_answers_a_head_request(app: App) -> None:
 def test_starts_the_pending_rebuild_when_the_service_shuts_down() -> None:
     app = App(snapshot(), secret="s")
     body = json.dumps({"type": "page.created"})
-    signature = "sha256=" + hmac.new(b"s", body.encode(), hashlib.sha256).hexdigest()
+    signature = sign(body, "s")
     with app.client as client:
         response = client.post(
             "/webhooks/notion", content=body, headers={"X-Notion-Signature": signature}
