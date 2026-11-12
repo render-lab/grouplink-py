@@ -425,7 +425,7 @@ class TestRebuild:
         html = h.html("shifra")
         gmail = "https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=shifra@render.com"
         assert f'href="{address}" data-gmail="{gmail}"' in html
-        assert '<span class="card__hint">Opens your email</span>' in html
+        assert '<span class="card__hint">Opens your email app</span>' in html
 
     async def test_refuses_to_run_when_the_default_slug_matches_nobody(self, env: Any) -> None:
         env(SITE_DEFAULT_SLUG="nobody")

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'sha256-HceIJMQx9+jv9P4/OwZ49j7Ef/rS6AOqjsFppVh4MmY='; script-src 'sha256-7S6kZiebtAc1U92DYEPa+0vbOzw00YsDrQVO57rmz+A='; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'sha256-9MSQWE6fjAiWH5HaqnNvGACgJ5mhaNoKwkl6rW76WZ0='; script-src 'sha256-lUnAaB5Qc5JpAByA/fdQq0sz3KgYxu9+kJRzkJS05Xk=' 'sha256-20Moz6BwZjL2Kl03UvoLFS+aP7e2osMSnKdaPe5E7SU='; font-src 'self'; base-uri 'none'; form-action 'none'">
 <title>Render Links</title>
 <meta name="description" content="The fastest path to production for full-stack applications and agents">
 <meta property="og:title" content="Graham — links">
@@ -35,29 +35,51 @@
   --tab-selected-bg: var(--bg);
   --tab-selected-ring: #00000012;
 
+  /* The theme toggle shows the moon in light mode and the sun in dark mode. */
+  --toggle-moon: block;
+  --toggle-sun: none;
+
   --radius-control: 4px;
   --radius-card: 8px;
   --radius-button: 2px;
-  --grid-margin: 24px;
+  --grid-margin: 32px;
   --ease: cubic-bezier(0.9, 0.1, 0.1, 0.9);
 
   --font-default: 'PP Neue Montreal', ui-sans-serif, system-ui, sans-serif;
 
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0D0D0D;
-    --text: #FFFFFF;
-    --text-secondary: #C7C7C7;
-    --text-faint: #B3B3B3;
-    --hairline: #272727;
-    --focus: #B3B1FA;
-    --tabs-bg: color-mix(in srgb, var(--text) 8%, transparent);
-    --tab-selected-bg: color-mix(in srgb, var(--text) 12%, var(--bg));
-    --tab-selected-ring: #ffffff0d;
+  :root:not([data-theme="light"]) {
+  --bg: #0D0D0D;
+  --text: #FFFFFF;
+  --text-secondary: #C7C7C7;
+  --text-faint: #B3B3B3;
+  --hairline: #272727;
+  --focus: #B3B1FA;
+  --tabs-bg: color-mix(in srgb, var(--text) 8%, transparent);
+  --tab-selected-bg: color-mix(in srgb, var(--text) 12%, var(--bg));
+  --tab-selected-ring: #ffffff0d;
+  --toggle-moon: none;
+  --toggle-sun: block;
+  color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0D0D0D;
+  --text: #FFFFFF;
+  --text-secondary: #C7C7C7;
+  --text-faint: #B3B3B3;
+  --hairline: #272727;
+  --focus: #B3B1FA;
+  --tabs-bg: color-mix(in srgb, var(--text) 8%, transparent);
+  --tab-selected-bg: color-mix(in srgb, var(--text) 12%, var(--bg));
+  --tab-selected-ring: #ffffff0d;
+  --toggle-moon: none;
+  --toggle-sun: block;
+  color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -65,6 +87,7 @@
 html { -webkit-text-size-adjust: 100%; }
 
 body {
+  position: relative;
   margin: 0;
   min-height: 100svh;
   display: flex;
@@ -114,6 +137,41 @@ body {
   -webkit-mask: url('/links/assets/render-logo.svg') center / contain no-repeat;
   mask: url('/links/assets/render-logo.svg') center / contain no-repeat;
 }
+
+/*
+ * The theme toggle, in the top right corner of the page and level with the logo.
+ * It is hidden until PAGE_SCRIPT runs, because it does nothing without the script.
+ */
+.theme-toggle {
+  position: absolute;
+  top: 72px;
+  right: var(--grid-margin);
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.theme-toggle[hidden] { display: none; }
+.theme-toggle:hover { color: var(--text); }
+.theme-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+.theme-toggle__icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.theme-toggle__moon { display: var(--toggle-moon); }
+.theme-toggle__sun { display: var(--toggle-sun); }
 
 .main {
   display: flex;
@@ -335,6 +393,7 @@ body {
 }
 
 @media (max-width: 1023.98px) {
+  :root { --grid-margin: 24px; }
   .intro__title { font-size: 28px; }
 }
 
@@ -342,6 +401,7 @@ body {
   :root { --grid-margin: 16px; }
   .intro__title { font-size: 24px; }
   .page { padding-top: 32px; }
+  .theme-toggle { top: 22px; width: 44px; height: 44px; }
   .main { gap: 24px; padding-top: 40px; }
   .tab { min-height: 40px; }
   .social { width: 44px; height: 44px; }
@@ -351,11 +411,23 @@ body {
   .card__go { transition: none; }
 }
 </style>
+<script>
+try {
+  var theme = localStorage.getItem('theme');
+  if (theme === 'light' || theme === 'dark') {
+    document.documentElement.dataset.theme = theme;
+  }
+} catch (error) {}
+</script>
 </head>
 <body>
   <div class="page">
     <header class="header">
       <a class="logo" href="https://render.com/" aria-label="Render home"><span class="logo__mark"></span></a>
+      <button class="theme-toggle" type="button" aria-label="Dark mode" aria-pressed="false" hidden>
+        <svg class="theme-toggle__icon theme-toggle__moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.25 14.25A8.25 8.25 0 0 1 9.75 3.75a8.25 8.25 0 1 0 10.5 10.5z"/></svg>
+        <svg class="theme-toggle__icon theme-toggle__sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.75v1.5M12 19.75v1.5M2.75 12h1.5M19.75 12h1.5M5.46 5.46l1.06 1.06M17.48 17.48l1.06 1.06M5.46 18.54l1.06-1.06M17.48 6.52l1.06-1.06"/></svg>
+      </button>
     </header>
     <main class="main">
       <div class="intro">
@@ -463,6 +535,32 @@ if (tabs.length) {
     showSection(event.state && event.state.section ? event.state.section : opened);
   });
 }
+
+// The theme toggle saves the choice, and THEME_SCRIPT applies it on the next load.
+// With no saved choice, the page follows the system theme.
+var toggle = document.querySelector('.theme-toggle');
+var darkScheme = matchMedia('(prefers-color-scheme: dark)');
+
+function isDark() {
+  var theme = document.documentElement.dataset.theme;
+  return theme ? theme === 'dark' : darkScheme.matches;
+}
+
+function showTheme() {
+  toggle.setAttribute('aria-pressed', String(isDark()));
+}
+
+toggle.addEventListener('click', function () {
+  var theme = isDark() ? 'light' : 'dark';
+  document.documentElement.dataset.theme = theme;
+  try {
+    localStorage.setItem('theme', theme);
+  } catch (error) {}
+  showTheme();
+});
+darkScheme.addEventListener('change', showTheme);
+showTheme();
+toggle.hidden = false;
 </script>
 </body>
 </html>

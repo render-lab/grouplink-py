@@ -6,8 +6,8 @@ The look comes from the Website Lab redesign of the links page: color tokens in
 purple only for the focus ring.
 
 The page carries its own Content-Security-Policy, with the inline style and
-script blocks allowed by hash. Adding either one anywhere but STYLES or
-PAGE_SCRIPT will be blocked by the browser. The policy is a meta tag
+script blocks allowed by hash. The browser blocks any inline style or script
+that is not in STYLES, THEME_SCRIPT, or PAGE_SCRIPT. The policy is a meta tag
 rather than a response header so the hashes cannot drift from the content
 they cover.
 
@@ -169,36 +169,54 @@ _STYLES_HEAD = """
   --tab-selected-bg: var(--bg);
   --tab-selected-ring: #00000012;
 
+  /* The theme toggle shows the moon in light mode and the sun in dark mode. */
+  --toggle-moon: block;
+  --toggle-sun: none;
+
   --radius-control: 4px;
   --radius-card: 8px;
   --radius-button: 2px;
-  --grid-margin: 24px;
+  --grid-margin: 32px;
   --ease: cubic-bezier(0.9, 0.1, 0.1, 0.9);
 
   --font-default: 'PP Neue Montreal', ui-sans-serif, system-ui, sans-serif;
 
-  color-scheme: light dark;
+  color-scheme: light;
 }
+"""
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0D0D0D;
-    --text: #FFFFFF;
-    --text-secondary: #C7C7C7;
-    --text-faint: #B3B3B3;
-    --hairline: #272727;
-    --focus: #B3B1FA;
-    --tabs-bg: color-mix(in srgb, var(--text) 8%, transparent);
-    --tab-selected-bg: color-mix(in srgb, var(--text) 12%, var(--bg));
-    --tab-selected-ring: #ffffff0d;
-  }
-}
+# The dark tokens apply when the system is dark and the visitor did not choose light,
+# or when the visitor chose dark. THEME_SCRIPT sets data-theme from the saved choice.
+_DARK_TOKENS = """
+  --bg: #0D0D0D;
+  --text: #FFFFFF;
+  --text-secondary: #C7C7C7;
+  --text-faint: #B3B3B3;
+  --hairline: #272727;
+  --focus: #B3B1FA;
+  --tabs-bg: color-mix(in srgb, var(--text) 8%, transparent);
+  --tab-selected-bg: color-mix(in srgb, var(--text) 12%, var(--bg));
+  --tab-selected-ring: #ffffff0d;
+  --toggle-moon: none;
+  --toggle-sun: block;
+  color-scheme: dark;
+"""
 
+_STYLES_DARK = f"""
+@media (prefers-color-scheme: dark) {{
+  :root:not([data-theme="light"]) {{{_DARK_TOKENS}  }}
+}}
+
+:root[data-theme="dark"] {{{_DARK_TOKENS}}}
+"""
+
+_STYLES_BASE = """
 *, *::before, *::after { box-sizing: border-box; }
 
 html { -webkit-text-size-adjust: 100%; }
 
 body {
+  position: relative;
   margin: 0;
   min-height: 100svh;
   display: flex;
@@ -248,6 +266,41 @@ body {
   -webkit-mask: url('/links/assets/render-logo.svg') center / contain no-repeat;
   mask: url('/links/assets/render-logo.svg') center / contain no-repeat;
 }
+
+/*
+ * The theme toggle, in the top right corner of the page and level with the logo.
+ * It is hidden until PAGE_SCRIPT runs, because it does nothing without the script.
+ */
+.theme-toggle {
+  position: absolute;
+  top: 72px;
+  right: var(--grid-margin);
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.theme-toggle[hidden] { display: none; }
+.theme-toggle:hover { color: var(--text); }
+.theme-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+.theme-toggle__icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.theme-toggle__moon { display: var(--toggle-moon); }
+.theme-toggle__sun { display: var(--toggle-sun); }
 
 .main {
   display: flex;
@@ -461,6 +514,7 @@ _STYLES_TAIL = """
 }
 
 @media (max-width: 1023.98px) {
+  :root { --grid-margin: 24px; }
   .intro__title { font-size: 28px; }
 }
 
@@ -468,6 +522,7 @@ _STYLES_TAIL = """
   :root { --grid-margin: 16px; }
   .intro__title { font-size: 24px; }
   .page { padding-top: 32px; }
+  .theme-toggle { top: 22px; width: 44px; height: 44px; }
   .main { gap: 24px; padding-top: 40px; }
   .tab { min-height: 40px; }
   .social { width: 44px; height: 44px; }
@@ -478,7 +533,18 @@ _STYLES_TAIL = """
 }
 """
 
-STYLES = _STYLES_HEAD + ICON_MASKS + _STYLES_TAIL
+STYLES = _STYLES_HEAD + _STYLES_DARK + _STYLES_BASE + ICON_MASKS + _STYLES_TAIL
+
+# Applies the saved theme in the head, so the page does not paint in the wrong theme
+# first. Storage can be blocked, for example in a private window.
+THEME_SCRIPT = """
+try {
+  var theme = localStorage.getItem('theme');
+  if (theme === 'light' || theme === 'dark') {
+    document.documentElement.dataset.theme = theme;
+  }
+} catch (error) {}
+"""
 
 # An email card links to mailto:, which opens the mail app on a phone. A desktop
 # often has no mail app, so a mouse or trackpad swaps in Gmail's compose page, which
@@ -534,6 +600,32 @@ if (tabs.length) {
     showSection(event.state && event.state.section ? event.state.section : opened);
   });
 }
+
+// The theme toggle saves the choice, and THEME_SCRIPT applies it on the next load.
+// With no saved choice, the page follows the system theme.
+var toggle = document.querySelector('.theme-toggle');
+var darkScheme = matchMedia('(prefers-color-scheme: dark)');
+
+function isDark() {
+  var theme = document.documentElement.dataset.theme;
+  return theme ? theme === 'dark' : darkScheme.matches;
+}
+
+function showTheme() {
+  toggle.setAttribute('aria-pressed', String(isDark()));
+}
+
+toggle.addEventListener('click', function () {
+  var theme = isDark() ? 'light' : 'dark';
+  document.documentElement.dataset.theme = theme;
+  try {
+    localStorage.setItem('theme', theme);
+  } catch (error) {}
+  showTheme();
+});
+darkScheme.addEventListener('change', showTheme);
+showTheme();
+toggle.hidden = false;
 """
 
 
@@ -550,7 +642,7 @@ CSP = "; ".join(
         # they also load over plain http on localhost.
         "img-src 'self'",
         f"style-src {_sha256_source(STYLES)}",
-        f"script-src {_sha256_source(PAGE_SCRIPT)}",
+        f"script-src {_sha256_source(THEME_SCRIPT)} {_sha256_source(PAGE_SCRIPT)}",
         "font-src 'self'",
         "base-uri 'none'",
         "form-action 'none'",
@@ -558,7 +650,14 @@ CSP = "; ".join(
 )
 
 NEW_TAB_TEXT = '<span class="visually-hidden">(opens in a new tab)</span>'
-MAILTO_HINT = '<span class="card__hint">Opens your email</span>'
+MAILTO_HINT = '<span class="card__hint">Opens your email app</span>'
+
+# A moon in light mode and a sun in dark mode. The --toggle-moon and --toggle-sun
+# tokens show one of them.
+THEME_TOGGLE = """<button class="theme-toggle" type="button" aria-label="Dark mode" aria-pressed="false" hidden>
+        <svg class="theme-toggle__icon theme-toggle__moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.25 14.25A8.25 8.25 0 0 1 9.75 3.75a8.25 8.25 0 1 0 10.5 10.5z"/></svg>
+        <svg class="theme-toggle__icon theme-toggle__sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.75v1.5M12 19.75v1.5M2.75 12h1.5M19.75 12h1.5M5.46 5.46l1.06 1.06M17.48 17.48l1.06 1.06M5.46 18.54l1.06-1.06M17.48 6.52l1.06-1.06"/></svg>
+      </button>"""
 
 
 def _render_card(card: LinkCard) -> str:
@@ -736,11 +835,13 @@ def render_page(
 <link rel="icon" href="/links/assets/render-logomark-black.svg" media="(prefers-color-scheme: light)">
 <link rel="icon" href="/links/assets/render-logomark-white.svg" media="(prefers-color-scheme: dark)">
 <style>{STYLES}</style>
+<script>{THEME_SCRIPT}</script>
 </head>
 <body>
   <div class="page">
     <header class="header">
       <a class="logo" href="{LOGO_HREF}" aria-label="Render home"><span class="logo__mark"></span></a>
+      {THEME_TOGGLE}
     </header>
     <main class="main">
 {intro}

@@ -20,6 +20,8 @@ from grouplink.icons import ICON_NAMES, ORDINALS, SVG_ICONS
 from grouplink.links import to_card
 from grouplink.page import (
     PAGE_SCRIPT,
+    STYLES,
+    THEME_SCRIPT,
     LinkCard,
     PageModel,
     escape_html,
@@ -164,8 +166,8 @@ class TestRenderPage:
 
     def test_hints_that_any_mailto_card_opens_email(self) -> None:
         html = render_page(model_with(url="mailto:a@b.com?subject=Hi"), profile_slug="x")
-        cards = html.split("<script>")[0]
-        assert '<span class="card__hint">Opens your email</span>' in cards
+        cards = html.split("<body>")[1].split("<script>")[0]
+        assert '<span class="card__hint">Opens your email app</span>' in cards
         assert "(opens in a new tab)" not in cards
 
     def test_announces_the_new_tab_when_the_script_swaps_in_gmail(self) -> None:
@@ -214,12 +216,32 @@ class TestRenderPage:
         assert not re.search(r"font-weight:\s*(600|700|800|900|bold)", html)
 
 
+class TestThemeToggle:
+    def test_applies_the_saved_theme_before_the_body(self) -> None:
+        html = render_page(MODEL, profile_slug="shifra")
+        head = html.split("<body>")[0]
+        assert f"<script>{THEME_SCRIPT}</script>" in head
+        assert "localStorage.getItem('theme')" in THEME_SCRIPT
+
+    def test_hides_the_toggle_until_the_script_shows_it(self) -> None:
+        html = render_page(MODEL, profile_slug="shifra")
+        assert (
+            '<button class="theme-toggle" type="button" aria-label="Dark mode" '
+            'aria-pressed="false" hidden>'
+        ) in html
+        assert "toggle.hidden = false;" in PAGE_SCRIPT
+
+    def test_uses_the_dark_tokens_for_a_dark_choice_and_not_for_a_light_one(self) -> None:
+        assert ':root:not([data-theme="light"]) {' in STYLES
+        assert ':root[data-theme="dark"] {' in STYLES
+
+
 class TestContentSecurityPolicy:
     @staticmethod
-    def _inline_block(html: str, tag: str) -> str:
-        match = re.search(rf"<{tag}>([\s\S]*?)</{tag}>", html)
-        assert match, f"expected one inline <{tag}> block"
-        return match.group(1)
+    def _inline_blocks(html: str, tag: str) -> list[str]:
+        blocks = re.findall(rf"<{tag}>([\s\S]*?)</{tag}>", html)
+        assert blocks, f"expected an inline <{tag}> block"
+        return blocks
 
     @staticmethod
     def _policy(html: str) -> str:
@@ -235,8 +257,11 @@ class TestContentSecurityPolicy:
     def test_allows_the_inline_blocks_it_actually_emits(self) -> None:
         html = render_page(MODEL, profile_slug="shifra")
         csp = self._policy(html)
-        assert f"style-src '{self._sha256(self._inline_block(html, 'style'))}'" in csp
-        assert f"script-src '{self._sha256(self._inline_block(html, 'script'))}'" in csp
+        (style,) = self._inline_blocks(html, "style")
+        assert f"style-src '{self._sha256(style)}'" in csp
+        hashes = [f"'{self._sha256(block)}'" for block in self._inline_blocks(html, "script")]
+        scripts = " ".join(hashes)
+        assert f"script-src {scripts};" in csp
 
     def test_allows_only_the_sites_own_images(self) -> None:
         assert "img-src 'self';" in self._policy(render_page(MODEL, profile_slug="shifra"))
